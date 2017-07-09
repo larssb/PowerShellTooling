@@ -1,0 +1,6 @@
+TO-DO
+- Build script that makes the package ready.
+- I want to be able to share this module/project with potentially a lot of other projects.
+- Figure out a way to install this module to the global modules folder
+    -- look at how others do it.
+    -- we should use a private nuget feed then we can just install from there
