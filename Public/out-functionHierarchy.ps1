@@ -42,6 +42,7 @@ function out-functionHierarchy() {
         - PREP
     #>
     Import-Module -Name PSGraph;
+    . $PSScriptRoot\get-environmentOS.ps1;
 
     <#
         - Gather data on the PowerShell project. For later analyzation and output as a function hierarchy graph via Graphviz.
@@ -72,11 +73,15 @@ function out-functionHierarchy() {
         - Generate data for the graph
     #>
     $graphData = Graph psFunctionHierarchy {
+        # Exported commands
+        $exportedCommandNames = $moduleExportedCommands.Values.Name;
+
         Node projectRoot @{label="$moduleRootBaseName";shape='invhouse'}
         edge projectRoot -To "public functions" @{shape='oval'}
         edge projectRoot -To "private functions" @{shape='oval'}
-        Node $moduleExportedCommands.Values.Name -NodeScript { $_ } @{label={$_};shape='rect'}
-        edge "public functions" -To publicFunction
+        Node $exportedCommandNames -NodeScript { $_ } @{label={$_};shape='rect'}
+        #edge - "public functions" -fr $exportedCommandNames
+        edge $exportedCommandNames -FromScript { "public functions" } -ToScript { $_ }
     }
 
     <#
@@ -89,8 +94,18 @@ function out-functionHierarchy() {
     }
     #>
 
+    # Handle issue with path param in Export-PSGraph when on MacOS or Linux.
+    $os = get-environmentOS;
+
     # Output the graph
-    $graphvizOutput = $graphData | Export-PSGraph -ShowGraph;
+    if ($os -eq "Windows") {
+        $graphvizOutput = $graphData | Export-PSGraph -ShowGraph;
+    } else {
+        $file = [System.IO.Path]::GetRandomFileName();
+        $destinationPath = Join-Path $home "$file.png";
+        $graphvizOutput = $graphData | Export-PSGraph -DestinationPath $destinationPath;
+        Write-Output "Find the generated graph here: $destinationPath";
+    }
 
     #$graphvizOutput.Fullname
 }
