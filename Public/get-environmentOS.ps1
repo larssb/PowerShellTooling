@@ -26,6 +26,10 @@ function get-environmentOS() {
     #############
     $osType = [Environment]::OSVersion.Platform;
 
+    switch ($osType) {
+        "Win32NT" { $osType = "Windows" }
+    }
+
     # Return
     $osType;
 }

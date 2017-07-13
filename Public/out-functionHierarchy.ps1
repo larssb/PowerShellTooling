@@ -18,9 +18,9 @@ function out-functionHierarchy() {
 .NOTES
     A function hierarchy graph can be very usefull for getting an overview of a project and can work as deep technical documentation as well.
 .EXAMPLE
-    out-functionHierarchy -PSD1file .\myModule.psd1;
+    out-functionHierarchy -pathToPSD1file .\myModule.psd1;
     This will generate a function hierarchy graphviz graph over the myModule PowerShell module.
-.PARAMETER PSD1file
+.PARAMETER pathToPSD1file
     Full path to the PSD1 manifest file.
 .PARAMETER pathToStoreGraph
     The path to store the generated function hierarchy graph.
@@ -30,7 +30,7 @@ function out-functionHierarchy() {
     [CmdletBinding()]param(
         [Parameter(Mandatory=$true, ParameterSetName="default", HelpMessage="Full path to the PSD1 manifest file.")]
         [ValidateNotNullOrEmpty()]
-        [string]$PSD1file,
+        [string]$pathToPSD1file,
         [Parameter(Mandatory=$false, ParameterSetName="default", HelpMessage="The path to store the generated function hierarchy graph.")]
         [string]$pathToStoreGraph
     )
@@ -43,12 +43,13 @@ function out-functionHierarchy() {
     #>
     Import-Module -Name PSGraph;
     . $PSScriptRoot\get-environmentOS.ps1;
+    $rootOfTheProject = $pathToPSD1file -replace "\\(?!.*\\).+","";
 
     <#
         - Gather data on the PowerShell project. For later analyzation and output as a function hierarchy graph via Graphviz.
     #>
     # Import the specified module
-    $module = Import-Module -Name $PSD1file -PassThru;
+    $module = Import-Module -Name $pathToPSD1file -PassThru;
 
     # Get the root module
     $moduleRoot = $module.RootModule;
@@ -63,10 +64,30 @@ function out-functionHierarchy() {
         $ast = [System.Management.Automation.PSParser]::Tokenize( (Get-Content $pathToFunction), [ref]$null);
 
         # Look for dot-sourcing usage
-        $dotSourcing = $ast.where( {$_.content -eq "." -and $_.Type -eq "Operator"} );
+        $dotSourcedFiles = $ast.where( {$_.content -eq "." -and $_.Type -eq "Operator"} );
+
+        # Go over all lines with dot-sourcing calls
+        foreach ($dotSourcedFile in $dotSourcedFiles) {
+            #
+            $dotSourcedFile.startline
+
+        }
 
         # Look for import-module usage
+        $importedModules = $ast.where( {$_.content -eq "Import-module" -and $_.Type -eq "Command"} )
 
+        # Iterate over all lines with import-module calls
+        foreach ($importedModule in $importedModules) {
+            # Get the file being imported to go further down the hierarchy rabbit hole.
+            $importedFileInfo = $ast.where( {$_.startline -eq $importedModules.startline -and $_.Type -eq "CommandArgument" } );
+            $importedFileName = $importedFileInfo.Content -replace ".+\\",""
+            $importedFileLocation = Get-ChildItem -Path $rootOfTheProject -Recurse -Filter "$importedFileName*";
+
+            # Get the AST data for the imported file
+            $ast = [System.Management.Automation.PSParser]::Tokenize( (Get-Content $importedFileLocation), [ref]$null);
+
+
+        }
     }
 
     <#
@@ -79,9 +100,8 @@ function out-functionHierarchy() {
         Node projectRoot @{label="$moduleRootBaseName";shape='invhouse'}
         edge projectRoot -To "public functions" @{shape='oval'}
         edge projectRoot -To "private functions" @{shape='oval'}
-        Node $exportedCommandNames -NodeScript { $_ } @{label={$_};shape='rect'}
-        #edge - "public functions" -fr $exportedCommandNames
-        edge $exportedCommandNames -FromScript { "public functions" } -ToScript { $_ }
+        Node $exportedCommandNames -NodeScript { "$_()" } @{label={"$_()"};shape='rect'}
+        edge $exportedCommandNames -FromScript { "public functions" } -ToScript { "$_()" }
     }
 
     <#
