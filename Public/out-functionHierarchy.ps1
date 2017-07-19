@@ -100,7 +100,7 @@ function out-functionHierarchy() {
         Node projectRoot @{label="$moduleRootBaseName";shape='invhouse'}
         edge projectRoot -To "public functions" @{shape='oval'}
         edge projectRoot -To "private functions" @{shape='oval'}
-        Node $exportedCommandNames -NodeScript { "$_()" } @{label={"$_()"};shape='rect'}
+        Node $exportedCommandNames -NodeScript { "$_()" } @{label={"$_()"};shape='note'}
         edge $exportedCommandNames -FromScript { "public functions" } -ToScript { "$_()" }
     }
 

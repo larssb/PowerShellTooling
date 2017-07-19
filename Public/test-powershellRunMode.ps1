@@ -22,7 +22,9 @@ function test-powershellRunMode() {
 #>
 
     # Define parameters
-    [CmdletBinding()]param()
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param()
 
     #############
     # Execution #
