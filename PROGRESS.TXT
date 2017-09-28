@@ -5,7 +5,6 @@ TO-DO
     -- look at how others do it.
     -- we should use a private nuget feed then we can just install from there
 
-
 out-functionHierarchy:
     > also need to look for multiple functions in the same...
         >> to see if a function is being called internally inside a file
