@@ -1,11 +1,4 @@
-####################
-# FUNCTION - PREP #
-####################
 ##Requires -
-
-####################
-# FUNCTION - START #
-####################
 function get-environmentOS() {
 <#
 .DESCRIPTION
@@ -33,6 +26,3 @@ function get-environmentOS() {
     # Return
     $osType;
 }
-##################
-# FUNCTION - END #
-##################
