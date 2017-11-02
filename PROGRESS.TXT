@@ -9,3 +9,10 @@ out-functionHierarchy:
     > also need to look for multiple functions in the same...
         >> to see if a function is being called internally inside a file
         >> and to get info out a function to see if the function itself dot-sources or imports external functions/modules.
+
+Get-PublicFunctions:
+    > Danging chars still there if function name is not e.g. > set-something() bug > set-something { <-- then { will be left dangling.
+        >> Fix that.
+
+FormatJSON type thing:
+    > So that one do not have to fiddle with the nitty gritty every single time you have to produce JSON output and payload that to "X" endpoint.

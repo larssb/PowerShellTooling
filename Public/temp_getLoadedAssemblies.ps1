@@ -1,4 +1,4 @@
-function Get-type {
+function Get-type() {
 <#
 .SYNOPSIS
 Short description
