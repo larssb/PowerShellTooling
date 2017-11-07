@@ -131,7 +131,7 @@ function New-ScheduledJob() {
             # Status of the job creation
             $runMode = test-powershellRunMode -Interactive
             if($runMode) {
-                write-host "The job was creaetd successfully" -ForegroundColor Green
+                write-host "The job was created successfully" -ForegroundColor Green
             }
         } catch {
             #
