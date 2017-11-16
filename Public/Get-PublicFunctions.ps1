@@ -24,8 +24,8 @@ function Get-PublicFunctions() {
 
     Gets the files in the ./Public folder >> derives the function name inside each file >> outputs an array that contains the function names.
 .EXAMPLE
-    $publicFunctions = Get-PublicFunctions -PublicDirectory ./Public
-    Update-ModuleManifest -Path ./"MANIFESTFILE.psd1" -FunctionsToExport $publicFunctions
+    -1- $publicFunctions = Get-PublicFunctions -PublicDirectory ./Public
+    -2- Update-ModuleManifest -Path ./"MANIFESTFILE.psd1" -FunctionsToExport $publicFunctions
 
     Gets the files in the ./Public folder >> derives the function name inside each file >> outputs an array that contains the function names.
     The retrieved function names is then used to update a modules manifest file with the Update-ModuleManifest cmdlet.
