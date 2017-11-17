@@ -40,7 +40,6 @@ function New-ScheduledJob() {
         [ValidateNotNullOrEmpty()]
         [Hashtable]$TaskTriggerOptions,
         [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The type of payload the task should execute when triggered.")]
-        [ValidateNotNullOrEmpty()]
         [ValidateSet('File','ScriptBlock')]
         [String]$TaskPayload
     )
