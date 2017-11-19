@@ -12,7 +12,7 @@
 RootModule = 'powershellTooling.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.0.1'
+ModuleVersion = '0.0.0.2'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -69,8 +69,8 @@ Description = 'A project containing helper functions and other utilities to make
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = 'get-environmentOS', 'get-hostname', 'Get-PublicFunctions', 
-               'out-functionHierarchy', 'start-externalSoftware', 'Get-type', 
+FunctionsToExport = 'get-environmentOS', 'get-hostname', 'Get-PublicFunctions',
+               'out-functionHierarchy', 'start-externalSoftware', 'Get-type',
                'test-powershellRunMode', 'New-ScheduledJob'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
