@@ -24,6 +24,8 @@ function New-ScheduledJob() {
     A hashtable, for splatting, containig the options you want the job trigger to have.
 .PARAMETER TaskPayload
     A dynamic parameter for specifying the payload a Windows Scheduled Task should have when triggered. It can be either a file path to a script file or a scriptblock object.
+.PARAMETER credential
+    The credential of the user that should execute the HealOps task.
 #>
 
     # Define parameters
@@ -41,46 +43,39 @@ function New-ScheduledJob() {
         [Hashtable]$TaskTriggerOptions,
         [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The type of payload the task should execute when triggered.")]
         [ValidateSet('File','ScriptBlock')]
-        [String]$TaskPayload
+        [String]$TaskPayload,
+        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The credentials of the user that should execute the HealOps task.")]
+        [ValidateNotNullOrEmpty()]
+        [System.Management.Automation.PSCredential]$credential
     )
 
     DynamicParam {
-        $attributes = new-object System.Management.Automation.ParameterAttribute;
+        <#
+            - General config for the FilePath or Scriptblock parameter relative to the TaskPayload value.
+        #>
+        # Configure parameter
+        $attributes = new-object System.Management.Automation.ParameterAttribute
+        $attributes.Mandatory = $true
+        $ValidateNotNullOrEmptyAttribute = New-Object Management.Automation.ValidateNotNullOrEmptyAttribute
+        [Type]$ParameterType = "String"
+
+        # Define parameter collection
+        $attributeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+        $attributeCollection.Add($attributes)
+        $attributeCollection.Add($ValidateNotNullOrEmptyAttribute)
+
+        # Specific config
         if($TaskPayload -eq "File") {
-            # Configure parameter
-            $attributes.Mandatory = $true;
-            $attributes.HelpMessage = "The full path to the file that the Windows Scheduled Task should execute when triggered.";
-            $ValidateNotNullOrEmptyAttribute = New-Object Management.Automation.ValidateNotNullOrEmptyAttribute;
-
-            # Define parameter collection
-            $attributeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute];
-            $attributeCollection.Add($attributes)
-            $attributeCollection.Add($ValidateNotNullOrEmptyAttribute)
-
-            # Prepare to return & expose the parameter
-            $ParameterName = "FilePath";
-            [Type]$ParameterType = "String";
-        } else {
-            # Configure parameter
-            $attributes.Mandatory = $true;
-            $attributes.HelpMessage = "The scriptblock that the scheduled task should execute when triggered.";
-            $ValidateNotNullOrEmptyAttribute = New-Object Management.Automation.ValidateNotNullOrEmptyAttribute;
-
-            # Define parameter collection
-            $attributeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute];
-            $attributeCollection.Add($attributes)
-            $attributeCollection.Add($ValidateNotNullOrEmptyAttribute)
-
-            # Prepare to return & expose the parameter
-            $ParameterName = "ScriptBlock";
-            [Type]$ParameterType = "String";
+            $attributes.HelpMessage = "The full path to the file that the Windows Scheduled Task should execute when triggered."
+            $ParameterName = "FilePath"
+        } elseif($TaskPayload -eq "ScriptBlock") {
+            $attributes.HelpMessage = "The scriptblock that the scheduled task should execute when triggered."
+            $ParameterName = "ScriptBlock"
         }
 
-        $Parameter = New-Object Management.Automation.RuntimeDefinedParameter($ParameterName, $ParameterType, $attributeCollection);
-        if ($psboundparameters.ContainsKey('DefaultValue')) {
-            $attributeCollection.Value = $DefaultValue;
-        }
-        $paramDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary;
+        # Prepare to return & expose the parameter
+        $Parameter = New-Object Management.Automation.RuntimeDefinedParameter($ParameterName, $ParameterType, $AttributeCollection)
+        $paramDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
         $paramDictionary.Add($ParameterName, $Parameter)
         return $paramDictionary
     }
@@ -115,12 +110,14 @@ function New-ScheduledJob() {
         $createJobSplatting.Add('Name',$TaskName)
         $createJobSplatting.Add('Trigger',$newJobTrigger)
         $createJobSplatting.Add('ScheduledJobOption',$newScheduledJobOption)
+        $createJobSplatting.Add('Credential',$credential)
         if ($TaskPayload -eq 'File') {
             # Add the FilePath specific parameter to the splatting collection
             $createJobSplatting.Add('FilePath',$psboundparameters.FilePath)
         } else {
             # Add the FilePath specific parameter to the splatting collection
-            $createJobSplatting.Add('ScriptBlock',$psboundparameters.ScriptBlock)
+            $ScriptBlockObject = [System.Management.Automation.ScriptBlock]::Create($psboundparameters.ScriptBlock)
+            $createJobSplatting.Add('ScriptBlock',$ScriptBlockObject)
         }
 
         # Create the scheduled job
@@ -136,8 +133,6 @@ function New-ScheduledJob() {
             #
             throw "Failed to create the job. Failed with: $_"
         }
-
-        # !! Administrators group member creds required if > -RunElevated used.
     }
     End{}
 }
