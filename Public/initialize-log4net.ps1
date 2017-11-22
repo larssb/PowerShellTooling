@@ -1,7 +1,3 @@
-
-#####################
-# FUNCTION - START
-#####################
 function initialize-log4net() {
 <#
 .SYNOPSIS
@@ -31,39 +27,33 @@ function initialize-log4net() {
 
     # Define parameters
     param(
-        [Parameter(Mandatory=$true, HelpMessage="The path of the log4net assembly.")]
+        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The path where log4net should look for and place files.")]
         [ValidateNotNullOrEmpty()]
-        $log4NetAssemblyPath,
-        [Parameter(Mandatory=$true, HelpMessage="The path where log4net should look for and place files.")]
+        [String]$log4NetFilesPath,
+        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The filename of the log4net files. File extension is automatically added.")]
         [ValidateNotNullOrEmpty()]
-        $log4NetFilesPath,
-        [Parameter(Mandatory=$true, HelpMessage="The filename of the log4net files. File extension is automatically added.")]
+        [String]$log4NetFilesName,
+        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The name of the logger that is defined in the xml log4net config.")]
         [ValidateNotNullOrEmpty()]
-        $log4NetFilesName,
-        [Parameter(Mandatory=$true, HelpMessage="The name of the logger that is defined in the xml log4net config.")]
-        [ValidateNotNullOrEmpty()]
-        $log4NetLoggerName
+        [String]$log4NetLoggerName
     )
 
-####
-# Execution
-####
+#############
+# Execution #
+#############
     # Import the log4net assembly
-    Import-Module -Name $log4NetAssemblyPath;
+    Import-Module -Name $PSScriptRoot/../Artefacts/log4net/Assemblies/bin/log4net.dll
 
     # Get a LogManager
-    $log4NetLogManager = [log4net.logmanager];
+    $log4NetLogManager = [log4net.logmanager]
 
     # Configure log4Net
-    [log4net.GlobalContext]::Properties["LogFileName"] = "$log4NetFilesPath\$log4NetFilesName.log";
-    [log4net.Config.XmlConfigurator]::ConfigureAndWatch("$log4NetFilesPath\$log4NetFilesName.xml");
+    [log4net.GlobalContext]::Properties["LogFileName"] = "$log4NetFilesPath\$log4NetFilesName.log"
+    [log4net.Config.XmlConfigurator]::ConfigureAndWatch("$log4NetFilesPath\$log4NetFilesName.xml")
 
     # Instantiate a log4Net logger that will base its settings on the config in the provided .xml file
-    $log4NetLogger = $log4NetLogManager::GetLogger($log4NetLoggerName);
+    $log4NetLogger = $log4NetLogManager::GetLogger($log4NetLoggerName)
 
     # Return the logger to caller
-    $log4NetLogger;
+    $log4NetLogger
 }
-###################
-# FUNCTION - END
-###################
