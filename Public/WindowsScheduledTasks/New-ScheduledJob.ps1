@@ -122,7 +122,7 @@ function New-ScheduledJob() {
 
         # Create the scheduled job
         try {
-            Register-ScheduledJob @createJobSplatting -ErrorAction Stop | out-null
+            Register-ScheduledJob -InitializationScript { $currentExecPolicy = Get-ExecutionPolicy -Scope CurrentUser; if($currentExecPolicy -ne "ByPass") { Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser -Force | Out-Null } } @createJobSplatting -ErrorAction Stop | out-null
 
             # Status of the job creation
             $runMode = test-powershellRunMode -Interactive
