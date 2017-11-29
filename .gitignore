@@ -1,6 +1,6 @@
-#####################  
+#####################
 # Folders to ignore #
-
+BuildOutput
 
 ####################
 # Files to ignore  #
