@@ -7,7 +7,7 @@ function New-ScheduledJob() {
 .INPUTS
     Inputs (if any)
 .OUTPUTS
-    [Boolean] relative to the outcome of creating the Windows Scheduled task.
+    <nothing>
 .NOTES
     # It will only be possible to see the scheduled job in the 'Task Scheduler' with an administrator user.
     # The scheduled job will be stored in > $env:LOCALAPPDATA\Microsoft\Windows\PowerShell\ScheduledJobs
@@ -19,9 +19,9 @@ function New-ScheduledJob() {
 .PARAMETER TaskName
     The name that the Scheduled task should have.
 .PARAMETER TaskOptions
-    A hashtable, for splatting, containig the options you want the job to have.
+    A hashtable, for splatting, containing the options you want the job to have.
 .PARAMETER TaskTriggerOptions
-    A hashtable, for splatting, containig the options you want the job trigger to have.
+    A hashtable, for splatting, containing the options you want the job trigger to have.
 .PARAMETER TaskPayload
     A dynamic parameter for specifying the payload a Windows Scheduled Task should have when triggered. It can be either a file path to a script file or a scriptblock object.
 .PARAMETER credential
@@ -35,10 +35,10 @@ function New-ScheduledJob() {
         [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The name that the Scheduled task should have.")]
         [ValidateNotNullOrEmpty()]
         [String]$TaskName,
-        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="A hashtable, for splatting, containig the options you want the job to have.")]
+        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="A hashtable, for splatting, containing the options you want the job to have.")]
         [ValidateNotNullOrEmpty()]
         [Hashtable]$TaskOptions,
-        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="A hashtable, for splatting, containig the options you want the job trigger to have.")]
+        [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="A hashtable, for splatting, containing the options you want the job trigger to have.")]
         [ValidateNotNullOrEmpty()]
         [Hashtable]$TaskTriggerOptions,
         [Parameter(Mandatory=$true, ParameterSetName="Default", HelpMessage="The type of payload the task should execute when triggered.")]
