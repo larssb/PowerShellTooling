@@ -64,10 +64,10 @@ function Add-ScheduledTask() {
             #>
             # Splatting
             $createTaskOptionsSplatting = @{}
-            $createTaskOptionsSplatting.Add('AllowStartIfOnBatteries ', $TaskOptions.AllowStartIfOnBatteries)
-            $createTaskOptionsSplatting.Add('DontStopIfGoingOnBatteries ', $TaskOptions.DontStopIfGoingOnBatteries)
-            $createTaskOptionsSplatting.Add('DontStopOnIdleEnd ', $TaskOptions.DontStopOnIdleEnd)
-            $createTaskOptionsSplatting.Add('MultipleInstancePolicy ', $TaskOptions.MultipleInstancePolicy)
+            $createTaskOptionsSplatting.Add('AllowStartIfOnBatteries', $TaskOptions.AllowStartIfOnBatteries)
+            $createTaskOptionsSplatting.Add('DontStopIfGoingOnBatteries', $TaskOptions.DontStopIfGoingOnBatteries)
+            $createTaskOptionsSplatting.Add('DontStopOnIdleEnd', $TaskOptions.DontStopOnIdleEnd)
+            $createTaskOptionsSplatting.Add('MultipleInstances', $TaskOptions.MultipleInstances)
             $createTaskOptionsSplatting.Add('StartWhenAvailable', $TaskOptions.StartWhenAvailable)
             try {
                 $newTaskOptions = New-ScheduledTaskSettingsSet @createTaskOptionsSplatting -ErrorAction Stop -Verbose
