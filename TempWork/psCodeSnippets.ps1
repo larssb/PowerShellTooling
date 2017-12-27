@@ -11,3 +11,6 @@ write-verbose (Get-EventLog -LogName system -Newest 3 -EntryType Error | Out-Str
 
 # Bit depth test
 [Environment]::Is64BitProcess
+
+# Test whether the current PowerShell runs in administrator mode.
+([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator");
