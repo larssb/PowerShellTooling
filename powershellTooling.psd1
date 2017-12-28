@@ -72,7 +72,7 @@ Description = 'A project containing helper functions and other utilities to make
 FunctionsToExport = 'Add-ScheduledTask', 'get-environmentOS', 'get-hostname', 'Get-PublicFunctions',
                'initialize-log4net', 'out-functionHierarchy',
                'start-externalSoftware', 'Get-type', 'test-powershellRunMode',
-               'New-ScheduledJob'
+               'New-ScheduledJob', 'Get-PSProgramFilesModulesPath'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
