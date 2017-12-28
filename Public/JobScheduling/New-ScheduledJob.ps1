@@ -1,4 +1,3 @@
-#Requires -RunAsAdministrator
 function New-ScheduledJob() {
 <#
 .DESCRIPTION
