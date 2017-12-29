@@ -1,6 +1,15 @@
+<#
+    - File & directory related snippets
+#>
 # Get the directory separator character. Relative to the system.
 [System.IO.Path]::DirectorySeparatorChar
 
+# Get the directory part of the value in $path variable. C:\Hejsa\Hej\Hej.txt will return >> C:\Hejsa\Hej\
+[System.IO.Path]::GetDirectoryName($path)
+
+<#
+    -
+#>
 # Convert string to number <-- can be used with different number types.
 [string]$convertedInt = "1500"
 [int]$returnedInt = 0
