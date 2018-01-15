@@ -69,10 +69,9 @@ Description = 'A project containing helper functions and other utilities to make
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = 'Add-ScheduledTask', 'get-environmentOS', 'get-hostname', 'Get-PublicFunctions',
-               'initialize-log4net', 'out-functionHierarchy',
-               'start-externalSoftware', 'Get-type', 'test-powershellRunMode',
-               'New-ScheduledJob', 'Get-PSProgramFilesModulesPath'
+FunctionsToExport = 'Add-ScheduledTask', 'get-environmentOS', 'get-hostname', 'Get-PSProgramFilesModulesPath', 'Get-PublicFunctions',
+                    'Get-xScheduledTask', 'initialize-log4net', 'New-ScheduledJob', 'out-functionHierarchy', 'Set-xScheduledTask',
+                    'start-externalSoftware', 'test-powershellRunMode'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
