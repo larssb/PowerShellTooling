@@ -1,28 +1,34 @@
-##Requires -
 function get-environmentOS() {
 <#
 .DESCRIPTION
-    Long description
+    Returns the type of OS.
 .INPUTS
-    Inputs (if any)
+    <none>
 .OUTPUTS
-    Outputs (if any)
+    [String] representing the type of the OS.
 .NOTES
-    General notes
+    <none>
 .EXAMPLE
-    PS C:\> <example usage>
-    Explanation of what the example does
+    $osType = get-environmentOS
+        > Returns the type of OS.
 #>
+
+    [CmdletBinding()]
+    [OutputType([System.String])]
 
     #############
     # Execution #
     #############
-    $osType = [Environment]::OSVersion.Platform;
+    $osType = [Environment]::OSVersion.Platform
 
     switch ($osType) {
-        "Win32NT" { $osType = "Windows" }
+        "Win32NT" { $type = "Windows" }
+        "Unix" { $type = "Linux" }
+        Default {
+            throw "The OS could not be determined. The value of OS type is > $osType"
+        }
     }
 
     # Return
-    $osType;
+    $type
 }
