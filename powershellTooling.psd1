@@ -9,10 +9,10 @@
 @{
 
 # Script module or binary module file associated with this manifest.
-RootModule = 'powershellTooling.psm1'
+RootModule = 'powershellTooling'
 
 # Version number of this module.
-ModuleVersion = '0.0.0.12'
+ModuleVersion = '0.0.12'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
