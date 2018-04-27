@@ -24,7 +24,7 @@ GUID = 'c1e187cd-222f-4df6-8238-88f90f0284ee'
 Author = 'Lars Bengtsson | https://github.com/larssb | bingchonglars@gmail.com'
 
 # Company or vendor of this module
-CompanyName = 'Unknown'
+CompanyName = 'Bengtsson Driven Development'
 
 # Copyright statement for this module
 Copyright = '(c) Lars Bengtsson | https://github.com/larssb | bingchonglars@gmail.com. All rights reserved.'
