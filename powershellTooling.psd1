@@ -1,6 +1,6 @@
 @{
     # Script module or binary module file associated with this manifest.
-    RootModule = 'PowerShellTooling.psm1'
+    RootModule = 'PowerShellTooling'
 
     # ID used to uniquely identify this module
     GUID = 'c1e187cd-222f-4df6-8238-88f90f0284ee'
