@@ -1,5 +1,5 @@
 # Define the foldernames
-$functionFolders = @('Public', 'Private', 'Classes')
+$functionFolders = @('Public', 'Private')
 
 # Run over each folder and look for files to include/inject into the PSD1 manifest file
 ForEach ($folder in $functionFolders) {

@@ -1,10 +1,3 @@
-####################
-# FUNCTION - PREP #
-####################
-
-####################
-# FUNCTION - START #
-####################
 function start-externalSoftware() {
 <#
 .DESCRIPTION

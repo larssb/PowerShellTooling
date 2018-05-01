@@ -1,11 +1,4 @@
-####################
-# FUNCTION - PREP #
-####################
 ##Requires -Module PSGraph
-
-####################
-# FUNCTION - START #
-####################
 function out-functionHierarchy() {
 <#
 .DESCRIPTION

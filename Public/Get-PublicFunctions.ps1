@@ -1,5 +1,3 @@
-##Requires -
-
 function Get-PublicFunctions() {
 <#
 .DESCRIPTION

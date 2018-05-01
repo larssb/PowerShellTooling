@@ -1,4 +1,3 @@
-##Requires -
 function get-hostname() {
     <#
     .DESCRIPTION
