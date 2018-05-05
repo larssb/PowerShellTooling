@@ -15,5 +15,10 @@
         "markdown",
         "latex",
         "plaintext"
-    ]
+    ],
+
+    //-------- Workbench settings --------
+    "workbench.colorCustomizations": {
+        "editorIndentGuide.activeBackground": "#f10ed3fa"
+    }
 }
