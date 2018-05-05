@@ -1,4 +1,4 @@
-#Requires -Version 3
+##Requires -Version 3
 function test-powershellRunMode() {
 <#
 .DESCRIPTION

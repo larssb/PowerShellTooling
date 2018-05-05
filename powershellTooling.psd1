@@ -1,6 +1,7 @@
 @{
+
     # Script module or binary module file associated with this manifest.
-    RootModule = 'PowerShellTooling'
+    RootModule = 'PowerShellTooling.psm1'
 
     # ID used to uniquely identify this module
     GUID = 'c1e187cd-222f-4df6-8238-88f90f0284ee'
@@ -9,13 +10,13 @@
     ModuleVersion = '0.0.12'
 
     # Author of this module
-    Author = 'Lars Bengtsson | https://github.com/larssb | https://bengtssondd.it'
+    Author = 'Lars S. Bengtsson | https://github.com/larssb | https://bengtssondd.it'
 
     # Company or vendor of this module
     CompanyName = 'Bengtsson Driven Development'
 
     # Copyright statement for this module
-    Copyright = '(C) Lars Bengtsson | https://github.com/larssb | https://bengtssondd.it. All rights reserved.'
+    Copyright = '(C) 2018, Lars S. Bengtsson, licensed under Apache 2.0 License.'
 
     # Description of the functionality provided by this module
     Description = 'A project containing helper functions and other utilities to make your life programming PowerShell easier.'
@@ -41,7 +42,7 @@
     CmdletsToExport = @()
 
     # Variables to export from this module
-    VariablesToExport = '*'
+    #VariablesToExport = '*'
 
     # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
     AliasesToExport = @()
