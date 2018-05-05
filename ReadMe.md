@@ -1,6 +1,6 @@
 # Synopsis.
 
-PowerShellTooling is a self-developed proprietary module. It contains many small helper functions. Instead of having theese functions scattered around or copied into whatever new module I was developing, I made this PowerShell module, to be able to adhere to the DRY principle and to ease the workload of developing new PowerShell modules.
+PowerShellTooling is a self-developed proprietary module. It contains many small helper functions. Instead of having these functions scattered around or copied into whatever new module I was developing, I made this PowerShell module, to be able to adhere to the DRY principle and to ease the workload of developing new PowerShell modules.
 
 N.B. This module is a strong dependency of the HealOps module. Find HealOps here [HealOps-module][HealOps_OnGitHub]
 
