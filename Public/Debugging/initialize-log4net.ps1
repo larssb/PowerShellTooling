@@ -17,8 +17,7 @@ function Initialize-Log4Net() {
 .NOTES
     - The module returns a log4net logger object. Instantiated with the confguration settings in the xml file.
     - Log4Net will not itself throw an error as it fails silently!
-
-    Made into helper function by: Lars S. B. - bingchonglars@gmail.com - +4527320102
+    - The ConfigureAndWatch() is used on the Log4Net XMLConfigurator. That means that the Log4Net XML config file can be changed while the application is running and the changes will be hot-loaded.
 .EXAMPLE
     $log4netLogger = initialize-log4net -log4NetConfigFile $log4NetConfigFile -logfileName $log4netlog -loggerName $log4netLogName -LogFilesPath $LogFilesPath
     > Instantiates log4net with the settings found in the log4NetConfigFile specified. And with a logfilename as in $log4netlog and so forth.
@@ -57,14 +56,10 @@ function Initialize-Log4Net() {
         Add-Type -Path $PSScriptRoot/../../Artefacts/log4net/Assemblies/bin/log4net.dll
     }
     Process {
-        ####
-        # Configure log4Net
-        ####
-        #
-        [log4net.GlobalContext]::Properties["LogFileName"] = "$logFileName.log"
+        # Global setting, the log filename and the path to it. Combined.
+        [log4net.GlobalContext]::Properties["LogFileName"] = "$LogFilesPath$logFileName.log"
 
-        # TO-DO > Find a way to define the path....maybe something like > https://github.com/LaurentDardenne/Log4Posh/blob/fb421082cbff95b78ff25d96f580f0a6eb3ebf67/src/Log4Posh.psm1#L84
-
+        # Set up the repository and the XmlConfigurator. In configure and watch mode. Meaning that the config file can be changed and the changes will be hot-loaded.
         $logRepository = [log4net.LogManager]::GetRepository([System.Reflection.Assembly]::GetEntryAssembly())
         [log4net.Config.XmlConfigurator]::ConfigureAndWatch($logRepository,(Get-Item $log4NetConfigFile))
 

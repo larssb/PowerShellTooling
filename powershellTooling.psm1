@@ -17,5 +17,5 @@ ForEach ($folder in $functionFolders) {
 }
 $publicFunctions = (Get-ChildItem -Path "$PSScriptRoot\Public" -Filter '*.ps1' -Recurse).BaseName
 
-# Export the
+# Export the public functions
 Export-ModuleMember -Function $publicFunctions
