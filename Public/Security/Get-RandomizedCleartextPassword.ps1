@@ -32,7 +32,7 @@ function Get-RandomizedCleartextPassword() {
     [CmdletBinding(DefaultParameterSetName="Default")]
     [OutputType([Void])]
     param(
-        [Parameter(Mandatory=$true, ParameterSetName="NAME", HelpMessage="MESSAGE", ValueFromPipeline=$false)]
+        [Parameter(Mandatory)]
         [ValidateSet('ClearText','SecureString')]
         [String]$ReturnAs
     )
