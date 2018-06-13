@@ -7,7 +7,7 @@
     GUID = 'c1e187cd-222f-4df6-8238-88f90f0284ee'
 
     # Version number of this module.
-    ModuleVersion = '0.0.13'
+    ModuleVersion = '0.0.14'
 
     # Author of this module
     Author = 'Lars S. Bengtsson | https://github.com/larssb | https://bengtssondd.it'
