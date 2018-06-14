@@ -7,7 +7,7 @@
     GUID = 'c1e187cd-222f-4df6-8238-88f90f0284ee'
 
     # Version number of this module.
-    ModuleVersion = '0.0.14'
+    ModuleVersion = '0.0.15'
 
     # Author of this module
     Author = 'Lars S. Bengtsson | https://github.com/larssb | https://bengtssondd.it'
@@ -20,6 +20,11 @@
 
     # Description of the functionality provided by this module
     Description = 'A project containing helper functions and other utilities to make your life programming PowerShell easier.'
+
+    # Modules that must be imported into the global environment prior to importing this module
+    RequiredModules = @(
+        "PSSlack"
+    )
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
@@ -36,13 +41,11 @@
         'start-externalSoftware'
         'test-powershellRunMode'
         'import-jsonFile'
+        'Send-Info'
         )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport = @()
-
-    # Variables to export from this module
-    #VariablesToExport = '*'
 
     # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
     AliasesToExport = @()
