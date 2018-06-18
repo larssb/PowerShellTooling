@@ -52,15 +52,33 @@ function Initialize-Log4Net() {
 # Execution #
 #############
     Begin {
-        # Import the log4net assembly
-        Add-Type -Path $PSScriptRoot/../../Artefacts/log4net/Assemblies/bin/log4net.dll
+        [Bool]$IsPSCore = Test-IsPSCore
+        if ($IsPSCore) {
+            # Import the log4net assembly - supporting PS Core.
+            Add-Type -Path $PSScriptRoot/../../Artefacts/log4net/bin/netstandard/log4net.dll
+        } else {
+            # Import the log4net assembly - supporting .NET Framework 4.5 (e.g. Windows)
+            Add-Type -Path $PSScriptRoot/../../Artefacts/log4net/bin/net/log4net.dll
+        }
+
+        # Compensate for non-trailing slash on the LogFilesPath value.
+        if (-not $LogFilesPath.EndsWith("/")) {
+            $LogFilesPath = "$LogFilesPath/"
+        }
     }
     Process {
         # Global setting, the log filename and the path to it. Combined.
         [log4net.GlobalContext]::Properties["LogFileName"] = "$LogFilesPath$logFileName.log"
 
         # Set up the repository and the XmlConfigurator. In configure and watch mode. Meaning that the config file can be changed and the changes will be hot-loaded.
-        $logRepository = [log4net.LogManager]::GetRepository([System.Reflection.Assembly]::GetEntryAssembly())
+        $EntryAssembly = [System.Reflection.Assembly]::GetEntryAssembly()
+        if ($null -ne $EntryAssembly) {
+            # Calling [System.Reflection.Assembly]::GetEntryAssembly() worked. The log4net assembly was retrieved.
+            $logRepository = [log4net.LogManager]::GetRepository($EntryAssembly)
+        } else {
+            # As using > [System.Reflection.Assembly]::GetEntryAssembly() can return null in certain cases. Try with a fallback method to retrieve the loaded log4net assembly.
+            $logRepository = [log4net.LogManager]::GetRepository(([appdomain]::currentdomain.getassemblies() | Where-Object { $_.Location -match "log4net" }))
+        }
         [log4net.Config.XmlConfigurator]::ConfigureAndWatch($logRepository,(Get-Item $log4NetConfigFile))
 
         # Instantiate a log4Net logger that will base its settings on the config in the provided .xml file
