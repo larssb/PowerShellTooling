@@ -72,7 +72,7 @@ function Out-PSModuleCallGraph() {
 
         # Get the public commands/functions loaded by the module. Need them in order to control the scope and type of 'x' command/function being analyzed later on.
         $PublicFunctions = Get-Command -Module $Module.Name
-        Write-Verbose -Message "The public functions retrieved > $($PublicFunctions | Out-String)"
+        Write-Verbose -Message "The public functions retrieved > $($PublicFunctions.Name | Out-String)"
 
         # Collection to hold private functions
         [System.Collections.ArrayList]$PrivateFunctions = New-Object System.Collections.ArrayList
@@ -213,10 +213,13 @@ function Out-PSModuleCallGraph() {
         #>
         # Get all PS1 files
         $PS1Files = (Get-ChildItem -Path $Module.ModuleBase -Filter '*.ps1' -Recurse)
-        Write-Verbose -Message "All *.ps1 files retrieved > $($PS1Files | Out-String)"
+        Write-Verbose -Message "All *.ps1 files retrieved > $($PS1Files.Name | Out-String)"
 
         # Run through all the retrieved *.PS1 files >> to identify declared functions in them
         foreach ($PS1File in $PS1Files) {
+            # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation.
+            [System.Collections.ArrayList]$FunctionCommandHierarchy = New-Object System.Collections.ArrayList
+
             $ast = [System.Management.Automation.PSParser]::Tokenize( (Get-Content -Path $PS1File.FullName), [ref]$null)
 
             # Identify the declared functions in the file
@@ -279,9 +282,9 @@ function Out-PSModuleCallGraph() {
                                 [String]$CommandName = $Command.Content
                             }
 
-                            if ($DebugCommandsToExclude.Count -eq 0 -or $DebugCommandsToExclude -notcontains $Command.Content) {
+                            if ($DebugCommandsToExclude.Count -eq 0 -or $DebugCommandsToExclude -notcontains $CommandName) {
                                 # Control the scope and type of the command. If it is an external, a public or a private command
-                                $GetCommandData = Get-Command -Name $Command.Content -ErrorAction SilentlyContinue # Okay to continue silently. If Get-Command fails to find an ast parsed Command it means that it is 'scope private'.
+                                $GetCommandData = Get-Command -Name $CommandName -ErrorAction SilentlyContinue # Okay to continue silently. If Get-Command fails to find an ast parsed Command it means that it is 'scope private'.
                                 if ($null -ne $GetCommandData) {
                                     if ($GetCommandData.ModuleName -notmatch $Module.Name) {
                                         [String]$CommandScope = "External"
@@ -291,7 +294,7 @@ function Out-PSModuleCallGraph() {
                                 } else {
                                     [String]$CommandScope = "Private"
                                 }
-                                Write-Verbose -Message "The command $($Command.Content) found in the private function $FunctionName has the following scope > $CommandScope"
+                                Write-Verbose -Message "The command $($CommandName) found in the private function $FunctionName has the following scope > $CommandScope"
 
                                 # Create a custom object to hold the info on the command analyzed
                                 $CommandInfo = @{
@@ -317,8 +320,9 @@ function Out-PSModuleCallGraph() {
             }
 
             # Add the result of analyzing the PS1 file & its commands/functions to the CallGraphObjects collection
-            $CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
+            #$CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
         }
+        Write-Verbose -Message "$($PrivateFunctions.Count) private function found in the $($Module.Name)"
 
         <#
             Public functions.
@@ -345,24 +349,27 @@ function Out-PSModuleCallGraph() {
                     } else {
                         [String]$CommandName = $Command.Content
                     }
+                    Write-Verbose -Message "CommandName was derived to > $CommandName"
 
-                    if ($DebugCommandsToExclude.Count -eq 0 -or $DebugCommandsToExclude -notcontains $Command.Content) {
+                    if ($DebugCommandsToExclude.Count -eq 0 -or $DebugCommandsToExclude -notcontains $CommandName) {
                         # Control if it is a private function in the module
-                        $IsPrivateCommand = $PrivateFunctions.Contains($Command)
-                        if ($IsPrivateCommand) {
+                        if ($PrivateFunctions.Contains($CommandName)) {
                             [String]$CommandScope = "Private"
+                            Write-Verbose -Message "In here"
                         }
 
                         # Control if it is a public function in the module
-                        $IsPublicCommand = $PublicFunctions.Contains($Command)
-                        if ($IsPublicCommand) {
+                        if ($PublicFunctions.Name.Contains($CommandName)) {
                             [String]$CommandScope = "Public"
+                            Write-Verbose -Message "In there"
                         }
 
-                        # COntrol if the command is defined in an external module
-                        if (-not $IsPrivateCommand -and -not $IsPublicCommand) {
+                        # Control if the command is defined in an external module
+                        if (-not $PrivateFunctions.Contains($CommandName) -and -not $PublicFunctions.Name.Contains($CommandName)) {
                             [String]$CommandScope = "External"
+                            Write-Verbose -Message "In everywhere"
                         }
+                        Write-Verbose -Message "The command $($CommandName) found in the public function $PublicFunction has the following scope > $CommandScope"
 
                         # Create a custom object to hold the info on the command analyzed
                         $CommandInfo = @{
@@ -404,11 +411,9 @@ function Out-PSModuleCallGraph() {
                     # Counter used to annotate the nodes with the chronological order by which the command was called
                     $CommandCounter = 1
 
-                    # FEJL HER ! ... skal jo være per command name at der tælles ikke for det samlede hele. Ser altså derfor ikke rigtigt ud her!
-
                     # Create nodes for all the commands/functions the public command/function uses
                     $CallGraphObject.Commands.GetEnumerator() | ForEach-Object {
-                        Edge $CallGraphObject.PublicFunctionAffiliation, $_.CommandName -Attributes @{label=$CommandCounter}
+                        Edge $CallGraphObject.PublicFunctionAffiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
                         $CommandCounter++
                     }
                 }
