@@ -209,7 +209,7 @@ function Out-PSModuleCallGraph() {
     }
     Process {
         <#
-            - Get the private functions in the module. So that we can distinguise these from the external cmdlets/functions used by the module
+            - Analyze private functions in the module
         #>
         # Get all PS1 files
         $PS1Files = (Get-ChildItem -Path $Module.ModuleBase -Filter '*.ps1' -Recurse)
@@ -310,22 +310,23 @@ function Out-PSModuleCallGraph() {
 
                         # Add the analyzed info to the collection that holds all the aggregated info, derived by analyzing the public function/command currently being iterated over
                         $FunctionCommandHierarchy.Add(@{
-                            "FunctionAffiliation" = $FunctionName
+                            "Affiliation" = $FunctionName
                             "Commands" = $CommandsUsedInfo
+                            "Type" = "PrivateCommands"
                         }) | Out-Null
                     } # End of conditional on "content" in $CommandsUsed
                 } else {
                     Write-Verbose -Message "The function named $FunctionName is a public function"
                 } # End of conditional on the function scope (private or public).
-            }
+            } # End of foreach on each $DeclaredFunction in $DeclaredFunctions
 
             # Add the result of analyzing the PS1 file & its commands/functions to the CallGraphObjects collection
-            #$CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
+            $CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
         }
         Write-Verbose -Message "$($PrivateFunctions.Count) private function found in the $($Module.Name)"
 
         <#
-            Public functions.
+            - Analyze Public functions in the module.
         #>
         # Parse the AST of the public funtions to discover the CommandArguments used
         foreach ($PublicFunction in $PublicFunctions) {
@@ -355,19 +356,16 @@ function Out-PSModuleCallGraph() {
                         # Control if it is a private function in the module
                         if ($PrivateFunctions.Contains($CommandName)) {
                             [String]$CommandScope = "Private"
-                            Write-Verbose -Message "In here"
                         }
 
                         # Control if it is a public function in the module
                         if ($PublicFunctions.Name.Contains($CommandName)) {
                             [String]$CommandScope = "Public"
-                            Write-Verbose -Message "In there"
                         }
 
                         # Control if the command is defined in an external module
                         if (-not $PrivateFunctions.Contains($CommandName) -and -not $PublicFunctions.Name.Contains($CommandName)) {
                             [String]$CommandScope = "External"
-                            Write-Verbose -Message "In everywhere"
                         }
                         Write-Verbose -Message "The command $($CommandName) found in the public function $PublicFunction has the following scope > $CommandScope"
 
@@ -385,8 +383,9 @@ function Out-PSModuleCallGraph() {
 
                 # Add the analyzed info to the collection that holds all the aggregated info, derived by analyzing the public function/command currently being iterated over
                 $PublicFunctionCommandHierarchy.Add(@{
-                    "PublicFunctionAffiliation" = $PublicFunction.Name
+                    "Affiliation" = $PublicFunction.Name
                     "Commands" = $CommandsUsedInfo
+                    "Type" = "PublicCommands"
                 }) | Out-Null
             }
 
@@ -395,7 +394,7 @@ function Out-PSModuleCallGraph() {
         }
 
         <#
-            - Generate data for the graph
+            - Create the Graph
         #>
         $graphData = Graph ModuleCallGraph {
             # Graph root node. To which all other nodes will be rooted.
@@ -403,17 +402,19 @@ function Out-PSModuleCallGraph() {
 
             # Create nodes on the graph on all the analyzed data
             foreach ($CallGraphObject in $CallGraphObjects) {
-                # "Attach" the public command/function to the root node
-                Edge ProjectRoot, $CallGraphObject.PublicFunctionAffiliation
+                if ($CallGraphObject.Type -eq "PublicCommands") {
+                    # "Attach" the command/function to the root node
+                    Edge ProjectRoot, $CallGraphObject.Affiliation
+                }
 
                 # Control that the command/function actually used any other commands/functions
                 if ($CallGraphObject.Commands.CommandsUsedInfo.Count -gt 0) {
                     # Counter used to annotate the nodes with the chronological order by which the command was called
                     $CommandCounter = 1
 
-                    # Create nodes for all the commands/functions the public command/function uses
+                    # Create nodes for all the commands/functions the command/function uses
                     $CallGraphObject.Commands.GetEnumerator() | ForEach-Object {
-                        Edge $CallGraphObject.PublicFunctionAffiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                        Edge $CallGraphObject.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
                         $CommandCounter++
                     }
                 }
