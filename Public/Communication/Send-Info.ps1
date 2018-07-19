@@ -71,7 +71,7 @@ function Send-Info() {
         switch ($FormOfCommunication) {
             'E-mail' {
                 try {
-                    Send-MailMessage @SplattingHashtable
+                    Send-MailMessage @SplattingHashtable -ErrorAction Stop
                 } catch {
                     throw "Sending the e-mail to $($SplattingHashtable.To). Failed with > $_"
                 }

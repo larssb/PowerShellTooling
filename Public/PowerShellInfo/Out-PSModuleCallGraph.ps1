@@ -403,23 +403,61 @@ function Out-PSModuleCallGraph() {
             # Create nodes on the graph on all the analyzed data
             foreach ($CallGraphObject in $CallGraphObjects) {
                 if ($CallGraphObject.Type -eq "PublicCommands") {
-                    # "Attach" the command/function to the root node
+
+                    # Get the index of the current CallGraphObject.
+                    [int]$IdxOfThisCallGraphObject = $CallGraphObjects.IndexOf($CallGraphObject)
+
+                    # "Attach" the public command/function to the root node
                     Edge ProjectRoot, $CallGraphObject.Affiliation
-                }
 
-                # Control that the command/function actually used any other commands/functions
-                if ($CallGraphObject.Commands.CommandsUsedInfo.Count -gt 0) {
-                    # Counter used to annotate the nodes with the chronological order by which the command was called
-                    $CommandCounter = 1
+                    # Create a subgraph for each public command/function
+                    subgraph $IdxOfThisCallGraphObject @{style='filled';color='lightgrey';label=$CallGraphObject.Affiliation} {
+                        node @{style='filled';color='white'}
+                        #edge a0,a1,a2,a3
 
-                    # Create nodes for all the commands/functions the command/function uses
-                    $CallGraphObject.Commands.GetEnumerator() | ForEach-Object {
-                        Edge $CallGraphObject.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
-                        $CommandCounter++
+                        # Control that the command/function actually used any other commands/functions
+                        if ($CallGraphObject.Commands.CommandsUsedInfo.Count -gt 0) {
+                            # Counter used to annotate the nodes with the chronological order by which the command was called
+                            $CommandCounter = 1
+
+                            # Create nodes for all the commands/functions the command/function uses
+                            $CallGraphObject.Commands.GetEnumerator() | ForEach-Object {
+                                Edge $CallGraphObject.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                $CommandCounter++
+                            }
+                        }
                     }
+
+
+                } else {
+                    # It's commands from a private function. Graph that here.
                 }
+
+                #edge ProjectRoot -to a0
+                #Edge ProjectRoot, $CallGraphObject.Affiliation
+
             }
         }
+
+        <#
+            graph g {
+                subgraph 0 @{style='filled';color='lightgrey';label='process #1'} {
+                    node @{style='filled';color='white'}
+                    edge a0,a1,a2,a3
+                }
+                subgraph 1 @{label='Process #2';color='blue'} {
+                    node @{style='filled'}
+                    edge b0,b1,b2,b3
+                }
+                edge start -to a0,b0
+                edge a1 b3
+                edge b2,a3,a0
+                edge a3,b3 -to end
+
+                node 'start' @{shape='Mdiamond'}
+                node 'end'   @{shape='Msquare'}
+            }
+        #>
 
         # Output the graph
         $graphData | Export-PSGraph -ShowGraph
