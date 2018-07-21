@@ -217,9 +217,7 @@ function Out-PSModuleCallGraph() {
 
         # Run through all the retrieved *.PS1 files >> to identify declared functions in them
         foreach ($PS1File in $PS1Files) {
-            # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation.
-            [System.Collections.ArrayList]$FunctionCommandHierarchy = New-Object System.Collections.ArrayList
-
+            # Tokenize the content of the file
             $ast = [System.Management.Automation.PSParser]::Tokenize( (Get-Content -Path $PS1File.FullName), [ref]$null)
 
             # Identify the declared functions in the file
@@ -271,6 +269,9 @@ function Out-PSModuleCallGraph() {
                     }
 
                     if ($null -ne $CommandsUsed) {
+                        # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation.
+                        [System.Collections.ArrayList]$FunctionCommandHierarchy = New-Object System.Collections.ArrayList
+
                         # Ordered collection to hold the commands found in the command/function being analyzed
                         [System.Collections.ArrayList]$CommandsUsedInfo = New-Object System.Collections.Specialized.OrderedDictionary
 
@@ -320,8 +321,10 @@ function Out-PSModuleCallGraph() {
                 } # End of conditional on the function scope (private or public).
             } # End of foreach on each $DeclaredFunction in $DeclaredFunctions
 
-            # Add the result of analyzing the PS1 file & its commands/functions to the CallGraphObjects collection
-            $CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
+            if ($null -ne $FunctionCommandHierarchy) {
+                # Add the result of analyzing the PS1 file & its commands/functions to the CallGraphObjects collection
+                $CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
+            }
         }
         Write-Verbose -Message "$($PrivateFunctions.Count) private function found in the $($Module.Name)"
 
@@ -330,9 +333,6 @@ function Out-PSModuleCallGraph() {
         #>
         # Parse the AST of the public funtions to discover the CommandArguments used
         foreach ($PublicFunction in $PublicFunctions) {
-            # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation.
-            [System.Collections.ArrayList]$PublicFunctionCommandHierarchy = New-Object System.Collections.ArrayList
-
             # Tokenize the AST
             $ast = [System.Management.Automation.PSParser]::Tokenize( $($PublicFunction.Definition), [ref]$null)
 
@@ -340,6 +340,9 @@ function Out-PSModuleCallGraph() {
             $CommandsUsed = $ast.where( { $_.Type -eq "Command" } )
 
             if ($null -ne $CommandsUsed) {
+                # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation.
+                [System.Collections.ArrayList]$PublicFunctionCommandHierarchy = New-Object System.Collections.ArrayList
+
                 # Ordered collection to hold the commands found in the command/function being analyzed
                 [System.Collections.ArrayList]$CommandsUsedInfo = New-Object System.Collections.Specialized.OrderedDictionary
 
@@ -389,8 +392,10 @@ function Out-PSModuleCallGraph() {
                 }) | Out-Null
             }
 
-            # Add the result of analyzing the Public function to the CallGraphObjects collection
-            $CallGraphObjects.Add($PublicFunctionCommandHierarchy) | Out-Null
+            if ($null -ne $PublicFunctionCommandHierarchy) {
+                # Add the result of analyzing the Public function to the CallGraphObjects collection
+                $CallGraphObjects.Add($PublicFunctionCommandHierarchy) | Out-Null
+            }
         }
 
         <#
@@ -405,38 +410,60 @@ function Out-PSModuleCallGraph() {
                 # Get the index of the current CallGraphObject.
                 [int]$IdxOfThisCallGraphObject = $CallGraphObjects.IndexOf($CallGraphObject)
 
-                if ($CallGraphObject.Type -eq "PublicCommands") {
-                    # "Attach" the public command/function to the root node
-                    Edge ProjectRoot, $CallGraphObject.Affiliation
-                }
-
                 # Control that the command/function actually used any other commands/functions
                 if ($CallGraphObject.Commands.CommandsUsedInfo.Count -gt 0) {
-                    # Create a subgraph for each public command/function
-                    subgraph $IdxOfThisCallGraphObject @{style='filled';color='lightgrey'} {
+                    if ($CallGraphObject.Type -eq "PublicCommands") {
+                        # "Attach" the public command/function to the root node
+                        Edge ProjectRoot, $CallGraphObject.Affiliation -Attributes @{label="Public"}
+                    }
 
+                    # Create subgraphs for each command/function
+                    SubGraph $IdxOfThisCallGraphObject @{style='filled';color='lightgrey'} -ScriptBlock {
                         # Counter used to annotate the nodes with the chronological order by which the command was called
                         $CommandCounter = 1
 
                         # Create nodes for all the commands/functions the command/function uses
                         $CallGraphObject.Commands.GetEnumerator() | ForEach-Object {
                             if ($CallGraphObject.Type -eq "PrivateCommands") {
-                                Node $CallGraphObject.Affiliation #-Attributes @{style="filled"}
+                                # Create a unique node for the private command and style it
+                                Node $CallGraphObject.Affiliation
                                 Node @{style='filled';color='white'}
+
+                                # Graph a relationship between the private command & the command/s it uses
                                 Edge $CallGraphObject.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
                             } else {
+                                # Set the style of the nodes created in this section
                                 Node @{style='filled';color='white'}
+
                                 if ($_.CommandScope -eq "Private") {
+                                    # Create a duplicate node for a private command used by this command. Duplicate because the command already has its own subgraph. But we want it to be graphed underneath this command also.
                                     Node -Name "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$($_.CommandName)"}
+
+                                    # Graph a relationship between the private command & the command that uses it
                                     Edge $CallGraphObject.Affiliation, "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+
+                                    # Graph a relationship between the private command in this subgraph to the subgraph where the private command is fully graphed.
                                     Edge "$($_.CommandName)$IdxOfThisCallGraphObject", $_.CommandName -Attributes @{arrowsize=0}
                                 } else {
+                                    # Create a duplicate node for the command used by this command
                                     Node -Name "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$($_.CommandName)"}
+
+                                    # Graph a relationship between this command & the command it uses
                                     Edge $CallGraphObject.Affiliation, "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
                                 }
                             }
                             $CommandCounter++
                         }
+                    }
+                } else {
+                    if ($CallGraphObject.Type -eq "PublicCommands") {
+                        # Create a subgraph. So that the layout of a public function that uses no commands has the same layout as the other public commands.
+                        SubGraph $IdxOfThisCallGraphObject -Attributes @{style="filled";color="lightgrey"} -ScriptBlock {
+                            Node -Name $CallGraphObject.Affiliation
+                        }
+
+                        # Graph a relationship between the project root & the node created for the command/function which uses no commands
+                        Edge ProjectRoot, $CallGraphObject.Affiliation -Attributes @{label="Public"}
                     }
                 }
             }
