@@ -408,23 +408,33 @@ function Out-PSModuleCallGraph() {
                 if ($CallGraphObject.Type -eq "PublicCommands") {
                     # "Attach" the public command/function to the root node
                     Edge ProjectRoot, $CallGraphObject.Affiliation
-                } else {
-                    # It's commands is from a private function. Graph it.
                 }
 
                 # Control that the command/function actually used any other commands/functions
                 if ($CallGraphObject.Commands.CommandsUsedInfo.Count -gt 0) {
                     # Create a subgraph for each public command/function
                     subgraph $IdxOfThisCallGraphObject @{style='filled';color='lightgrey'} {
-                        Node @{style='filled';color='white'}
 
                         # Counter used to annotate the nodes with the chronological order by which the command was called
                         $CommandCounter = 1
 
                         # Create nodes for all the commands/functions the command/function uses
                         $CallGraphObject.Commands.GetEnumerator() | ForEach-Object {
-                            Node -Name "$($_.CommandName)$IdxOfThisCallGraphObject" -Attribute @{label="$($_.CommandName)"}
-                            Edge $CallGraphObject.Affiliation, "$($_.CommandName)$IdxOfThisCallGraphObject" -Attribute @{label="$CommandCounter\n$($_.CommandScope)"}
+                            if ($CallGraphObject.Type -eq "PrivateCommands") {
+                                Node $CallGraphObject.Affiliation #-Attributes @{style="filled"}
+                                Node @{style='filled';color='white'}
+                                Edge $CallGraphObject.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                            } else {
+                                Node @{style='filled';color='white'}
+                                if ($_.CommandScope -eq "Private") {
+                                    Node -Name "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$($_.CommandName)"}
+                                    Edge $CallGraphObject.Affiliation, "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                    Edge "$($_.CommandName)$IdxOfThisCallGraphObject", $_.CommandName -Attributes @{arrowsize=0}
+                                } else {
+                                    Node -Name "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$($_.CommandName)"}
+                                    Edge $CallGraphObject.Affiliation, "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                }
+                            }
                             $CommandCounter++
                         }
                     }
