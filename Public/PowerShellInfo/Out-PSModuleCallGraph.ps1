@@ -41,6 +41,8 @@ function Out-PSModuleCallGraph() {
     Full path to the root folder of the PowerShell module.
 .PARAMETER OutputPath
     The path on which to store the generated call graph.
+.PARAMETER ShowGraph
+    A switch parameter used to specify that the path should be opened and shown on screen after it has been generated.
 #>
 
     # Define parameters
@@ -66,13 +68,30 @@ function Out-PSModuleCallGraph() {
         [Parameter(ParameterSetName="ByModuleName")]
         [Parameter(ParameterSetName="ByModuleRoot")]
         [ValidateNotNullOrEmpty()]
-        [String]$OutputPath
+        [String]$OutputPath,
+        [Parameter()]
+        [Switch]$ShowGraph
     )
 
     #############
     # Execution #
     #############
     Begin {
+        [String]$FileName = "$([System.IO.Path]::GetRandomFileName()).png"
+        if ($PSBoundParameters.ContainsKey('OutputPath')) {
+            # Validate the specified path
+            if (-not (Test-Path -Path $OutputPath)) {
+                Write-Error -Exception "The path > $OutputPath, does not exist. Out-PSModuleCallGraph will use a default path instead."
+                $GraphOutputPath = Join-Path -Path $home -ChildPath $FileName
+            } else {
+                # Set the path to the path specified via the OutputPath parameter.
+                $GraphOutputPath = $OutputPath
+            }
+        } else {
+            # Set the path to use to the default home folder on the system
+            $GraphOutputPath = Join-Path -Path $home -ChildPath $FileName
+        }
+
         if ($PSBoundParameters.ContainsKey('ModuleName')) {
             # Import the specified module by name. Therefore, loaded from one of the default PowerShell module path locations.
             $Module = Import-Module -DisableNameChecking -Name $ModuleName -PassThru
@@ -489,6 +508,11 @@ function Out-PSModuleCallGraph() {
         }
 
         # Output the graph
-        $graphData | Export-PSGraph -ShowGraph
+        $ExportPSGraphSplatting = @{
+            Destination = $GraphOutputPath
+            ShowGraph = $ShowGraph
+        }
+        $GraphOutput = $graphData | Export-PSGraph @ExportPSGraphSplatting
+        Write-Host "The graph was generated. Find it in $($GraphOutput.DirectoryName) with the name $($GraphOutput.Name)" -ForegroundColor Green
     }
 }

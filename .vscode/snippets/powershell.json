@@ -348,5 +348,20 @@
 		"body":[
 			"[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute(\"RULE_NAME","\")]"
 		]
+	},
+	"SplattingNonPositional": {
+		"prefix": "SplatNonPositional",
+		"body":[
+			"\\$HashtableOfArguments = @{",
+			"\tKey = \"Value\"",
+			"\tKey_Boolean = \\$true",
+			"}"
+		]
+	},
+	"SplattingPositional": {
+		"prefix": "SplatPositional",
+		"body":[
+			"\\$ArrayOfArguments = \"test.txt\", \"test2.txt\""
+		]
 	}
 }
