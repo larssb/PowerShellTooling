@@ -1,4 +1,4 @@
-    #Requires -Module PSGraph
+#Requires -Module PSGraph
 function Out-PSModuleCallGraph() {
 <#
 .DESCRIPTION
