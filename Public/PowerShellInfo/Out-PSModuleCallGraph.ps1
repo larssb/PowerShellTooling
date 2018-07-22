@@ -1,4 +1,4 @@
-#Requires -Module PSGraph
+    #Requires -Module PSGraph
 function Out-PSModuleCallGraph() {
 <#
 .DESCRIPTION
@@ -29,6 +29,12 @@ function Out-PSModuleCallGraph() {
     in one of the default PowerShell module installation locations.
 .PARAMETER ExcludeDebugCommands
     Used to specify that you wish to exclude common debug commands such as > Write-Verbose & Write-Error.
+.PARAMETER GraphDirection
+    The direction the generated graph should have. Normally for Graphviz graphs, top to bottom is default. However, left to right suites the output of analyzing PowerShell modules
+    better. You can chose the default direction if you so wishes.
+
+    The real graph direction names in the DOT (Graphviz) language are: TB (top to bottom), LR (left to right), BT (bottom to top) and RL (right to left). The names used in the set
+    for this parameter are more self explanatory. Therefore used.
 .PARAMETER ModuleName
     The name of the module to analyze. Assumes that the module is installed in one of the default PowerShell module installation locations.
 .PARAMETER ModuleRoot
@@ -45,6 +51,11 @@ function Out-PSModuleCallGraph() {
         [Parameter(ParameterSetName="ByModuleName")]
         [Parameter(ParameterSetName="ByModuleRoot")]
         [Switch]$ExcludeDebugCommands,
+        [Parameter()]
+        [Parameter(ParameterSetName="ByModuleName")]
+        [Parameter(ParameterSetName="ByModuleRoot")]
+        [ValidateSet("Top-Bottom","Left-Right","Bottom-Top","Right-Left")]
+        [String]$GraphDirection = "Left-Right",
         [Parameter(Mandatory, ParameterSetName="ByModuleName")]
         [ValidateNotNullOrEmpty()]
         [String]$ModuleName,
@@ -85,6 +96,14 @@ function Out-PSModuleCallGraph() {
             $DebugCommandsToExclude = @('Write-Debug','Write-Error','Write-Verbose')
         } else {
             $DebugCommandsToExclude = @()
+        }
+
+        # "Translate" the selected Graph direction value to the proper DOT/graphviz value
+        switch ($GraphDirection) {
+            "Top-Bottom" { [String]$RealGraphDirection = "TB" }
+            "Left-Right" { [String]$RealGraphDirection = "LR" }
+            "Bottom-Top" { [String]$RealGraphDirection = "BT" }
+            "Right-Left" { [String]$RealGraphDirection = "RL" }
         }
 
         # Short-hand values for commands to be translated to their fullname counterpart
@@ -401,7 +420,7 @@ function Out-PSModuleCallGraph() {
         <#
             - Create the Graph
         #>
-        $graphData = Graph ModuleCallGraph {
+        $graphData = Graph ModuleCallGraph -Attributes @{rankdir=$RealGraphDirection} {
             # Graph the root node. To which all other nodes will be rooted.
             Node ProjectRoot -Attribute @{label="$($Module.Name)";shape='invhouse'}
 
@@ -418,7 +437,7 @@ function Out-PSModuleCallGraph() {
                     }
 
                     # Create subgraphs for each command/function
-                    SubGraph $IdxOfThisCallGraphObject @{style='filled';color='lightgrey'} -ScriptBlock {
+                    SubGraph -Attributes @{style='filled';color='lightgrey'} -ScriptBlock {
                         # Counter used to annotate the nodes with the chronological order by which the command was called
                         $CommandCounter = 1
 
@@ -458,7 +477,7 @@ function Out-PSModuleCallGraph() {
                 } else {
                     if ($CallGraphObject.Type -eq "PublicCommands") {
                         # Create a subgraph. So that the layout of a public function that uses no commands has the same layout as the other public commands.
-                        SubGraph $IdxOfThisCallGraphObject -Attributes @{style="filled";color="lightgrey"} -ScriptBlock {
+                        SubGraph -Attributes @{style="filled";color="lightgrey"} -ScriptBlock {
                             Node -Name $CallGraphObject.Affiliation
                         }
 
