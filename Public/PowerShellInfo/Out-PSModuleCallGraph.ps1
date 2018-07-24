@@ -22,19 +22,39 @@ function Out-PSModuleCallGraph() {
         - The PSGraph module should already be installed.
 .EXAMPLE
     Out-PSModuleCallGraph -ModuleName Pester
-    This will generate a call graph on the Pester module.
+    This will generate a call graph on the Pester module. To go by ModuleName the module being analyzed has to be installed in one of the default PowerShell module installation folders.
 .EXAMPLE
     Out-PSModuleCallGraph -ModuleRoot ./PowerShellTooling/
     This will generate a call graph on a properly defined PowerShell module in the folder 'PowerShellTooling'. A sub-folder to current folder. Useful if the module is not installed
     in one of the default PowerShell module installation locations.
+.PARAMETER Coloring
+    By default, coloring is used when the output that the graph will be based on is complex enough. The purpose is to make the generated graph more readable. E.g. by coloring the
+    edges of the graph.
+
+    This parameter let's you control the way coloring is used by the function. You have the following options:
+        1. Auto. This is the default value. If you do not choose to specify anything to the "Coloring" parameter it is set to "Auto".
+        2. Colors. Setting "Coloring" you force the generated graph to be colored.
+        3. NoColors. Let's you specify that no colors should be used when generating the graph.
 .PARAMETER ExcludeDebugCommands
     Used to specify that you wish to exclude common debug commands such as > Write-Verbose & Write-Error.
+.PARAMETER FoldersToExclude
+    A string array of folders to exclude when analyzing the PowerShell module. This could e.g. be used when you have a temporary folder with draft PowerShell files that you are
+    working on and don't want them included in the generated graph.
+    N.B. public functions will always be included, no matter what you specify here. The thinking being. If you made them public it is the intention that users of your module
+    should see & use the functions. Therefore, it should be included in the generated graph as well.
 .PARAMETER GraphDirection
     The direction the generated graph should have. Normally for Graphviz graphs, top to bottom is default. However, left to right suites the output of analyzing PowerShell modules
     better. You can chose the default direction if you so wishes.
 
     The real graph direction names in the DOT (Graphviz) language are: TB (top to bottom), LR (left to right), BT (bottom to top) and RL (right to left). The names used in the set
     for this parameter are more self explanatory. Therefore used.
+.PARAMETER IncludeDefaultExcludedFolders
+    Use this parameter to indicate that you wish to include normally excluded folders. They could e.g. be "Build" & "Temp" folders. The full list of per default excluded folders:
+        - Build
+        - Builds
+        - Temp
+        - Test
+        - Tests
 .PARAMETER ModuleName
     The name of the module to analyze. Assumes that the module is installed in one of the default PowerShell module installation locations.
 .PARAMETER ModuleRoot
@@ -49,27 +69,34 @@ function Out-PSModuleCallGraph() {
     [CmdletBinding(DefaultParameterSetName = "Default")]
     [OutputType([Void])]
     param(
-        [Parameter()]
+        [ValidateSet("Auto","Colors","NoColors")]
+        [String]$Coloring = "Auto",
         [Parameter(ParameterSetName="ByModuleName")]
         [Parameter(ParameterSetName="ByModuleRoot")]
         [Switch]$ExcludeDebugCommands,
-        [Parameter()]
+        [Parameter(ParameterSetName="ByModuleName")]
+        [Parameter(ParameterSetName="ByModuleRoot")]
+        [ValidateScript({$_.Count -ge 1})] # Validate that an empty array is not given to the parameter.
+        [String[]]$FoldersToExclude,
         [Parameter(ParameterSetName="ByModuleName")]
         [Parameter(ParameterSetName="ByModuleRoot")]
         [ValidateSet("Top-Bottom","Left-Right","Bottom-Top","Right-Left")]
         [String]$GraphDirection = "Left-Right",
+        [Parameter(ParameterSetName="ByModuleName")]
+        [Parameter(ParameterSetName="ByModuleRoot")]
+        [Switch]$IncludeDefaultExcludedFolders,
         [Parameter(Mandatory, ParameterSetName="ByModuleName")]
         [ValidateNotNullOrEmpty()]
         [String]$ModuleName,
         [Parameter(Mandatory, ParameterSetName="ByModuleRoot")]
         [ValidateNotNullOrEmpty()]
         [String]$ModuleRoot,
-        [Parameter()]
         [Parameter(ParameterSetName="ByModuleName")]
         [Parameter(ParameterSetName="ByModuleRoot")]
         [ValidateNotNullOrEmpty()]
         [String]$OutputPath,
-        [Parameter()]
+        [Parameter(ParameterSetName="ByModuleName")]
+        [Parameter(ParameterSetName="ByModuleRoot")]
         [Switch]$ShowGraph
     )
 
@@ -94,10 +121,10 @@ function Out-PSModuleCallGraph() {
 
         if ($PSBoundParameters.ContainsKey('ModuleName')) {
             # Import the specified module by name. Therefore, loaded from one of the default PowerShell module path locations.
-            $Module = Import-Module -DisableNameChecking -Name $ModuleName -PassThru
+            $Module = Import-Module -DisableNameChecking -Force -Name $ModuleName -PassThru -WarningAction SilentlyContinue
         } else {
             # Import the specified module by its fullname/path.
-            $Module = Import-Module -DisableNameChecking -Name $ModuleRoot -PassThru
+            $Module = Import-Module -DisableNameChecking -Force -Name $ModuleRoot -PassThru
         }
 
         # Get the public commands/functions loaded by the module. Need them in order to control the scope and type of 'x' command/function being analyzed later on.
@@ -115,6 +142,54 @@ function Out-PSModuleCallGraph() {
             $DebugCommandsToExclude = @('Write-Debug','Write-Error','Write-Verbose')
         } else {
             $DebugCommandsToExclude = @()
+        }
+
+        # Prepare to exclude folders
+        [System.Collections.ArrayList]$FolderExclusionList = New-Object System.Collections.ArrayList
+        if(-not $IncludeDefaultExcludedFolders) {
+            $DefaultExcludedFolders = @("Build","Builds","Temp","Test","Tests")
+            foreach ($DefExcludedFolder in $DefaultExcludedFolders) {
+                # Try getting the folder in the module folder-tree. Confirming that the folder exists. If not it is ridicolous to fetch sub-folders in the folder.
+                $Folder = Get-ChildItem -Directory -Filter "$DefExcludedFolder" -Path $Module.ModuleBase -Recurse
+                if ($null -ne $Folder) {
+                    # Add the folder itself to the exclusion list
+                    $FolderExclusionList.Add($Folder.BaseName) | Out-Null
+
+                    # Get the sub-folders of the folder, to filter-out these as well
+                    $SubFolders = Get-ChildItem -Directory -Path $Folder.FullName -Recurse
+
+                    # Add the sub-folders of the default excluded folder, to the folder exclusion list. If there are any.
+                    if ($null -ne $SubFolders) {
+                        foreach ($SubFolder in $SubFolders) {
+                            $FolderExclusionList.Add($SubFolder.BaseName) | Out-Null
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($PSBoundParameters.ContainsKey('FoldersToExclude')) {
+            foreach ($FolderToExclude in $FoldersToExclude) {
+                # Include the folder if it hasn't already been excluded because it is either one of the default excluded folders or a sub-folder to one.
+                if (-not ($FolderExclusionList.Contains($FolderToExclude))) {
+                    # Try getting the folder in the module folder-tree. Confirming that the folder exists. If not it is ridicolous to fetch sub-folders in the folder.
+                    $Folder = Get-ChildItem -Directory -Filter "$FolderToExclude" -Path $Module.ModuleBase -Recurse
+                    if ($null -ne $Folder) {
+                        # Add the folder itself to the exclusion list
+                        $FolderExclusionList.Add($Folder.BaseName) | Out-Null
+
+                        # Get the sub-folders of the folder, to filter-out these as well
+                        $SubFolders = Get-ChildItem -Directory -Path $Folder.FullName -Recurse
+
+                        # Add the sub-folders of the user excluded folder, to the folder exclusion list. If there are any.
+                        if ($null -ne $SubFolders) {
+                            foreach ($SubFolder in $SubFolders) {
+                                $FolderExclusionList.Add($SubFolder.BaseName) | Out-Null
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         # "Translate" the selected Graph direction value to the proper DOT/graphviz value
@@ -249,12 +324,26 @@ function Out-PSModuleCallGraph() {
         <#
             - Analyze private functions in the module
         #>
-        # Get all PS1 files
-        $PS1Files = (Get-ChildItem -Path $Module.ModuleBase -Filter '*.ps1' -Recurse)
-        Write-Verbose -Message "All *.ps1 files retrieved > $($PS1Files.Name | Out-String)"
+        # Get all non-excluded PS1 files
+        [System.Collections.ArrayList]$PS1Files = New-Object System.Collections.ArrayList
+        $FoldersToInclude = Get-ChildItem -Directory -Exclude $FolderExclusionList -Path $Module.ModuleBase -Recurse
+        foreach ($FolderToInclude in $FoldersToInclude) {
+            $files = (Get-ChildItem -Path $FolderToInclude.FullName -Filter '*.ps1' -Recurse)
+            foreach ($file in $files) {
+                $PS1Files.Add($file) | Out-Null
+            }
+        }
+# SOMETHING COMPLETELY WRONG WHEN ANALYZING PLASTER AND PESTER....troubleshoot! Very few files are included. And use excludedfolders
+# LIKELY the modulebase....its version based
+        # Remove potential duplicates in the PS1Files collection. Duplicates can happen in the above because a file can be in a sub-folder that is read multiple times in the above.
+        [Array]$PS1Files = $PS1Files | Sort-Object -Unique
+        Write-Verbose -Message "PS1 files to analyze > $($PS1Files.Name | Out-String)"
 
         # Run through all the retrieved *.PS1 files >> to identify declared functions in them
         foreach ($PS1File in $PS1Files) {
+            # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation. Need to declare it here. If not "the past" iterated PS1File FunctionCommandHierarchy will be added to the CallGraphObjects collection.
+            [System.Collections.ArrayList]$FunctionCommandHierarchy = New-Object System.Collections.ArrayList
+
             # Tokenize the content of the file
             $ast = [System.Management.Automation.PSParser]::Tokenize( (Get-Content -Path $PS1File.FullName), [ref]$null)
 
@@ -300,16 +389,13 @@ function Out-PSModuleCallGraph() {
                     if ($ParseByEndline) {
                         Write-Verbose -Message "Parsing by endline. Line to parse to is > $ParseEndLine"
                         $CommandsUsed = $ast.where( { $_.Type -eq "Command" -and $_.EndLine -le $ParseEndLine } )
-                        Write-Verbose -Message "Found the following commands used in the private function $FunctionName > $($CommandsUsed | Out-String)"
                     } else {
                         Write-Verbose -Message "Not parsing by endline."
                         $CommandsUsed = $ast.where( { $_.Type -eq "Command" } )
                     }
+                    Write-Verbose -Message "Found the following commands used in the private function $FunctionName > $($CommandsUsed | Out-String)"
 
                     if ($null -ne $CommandsUsed) {
-                        # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation.
-                        [System.Collections.ArrayList]$FunctionCommandHierarchy = New-Object System.Collections.ArrayList
-
                         # Ordered collection to hold the commands found in the command/function being analyzed
                         [System.Collections.ArrayList]$CommandsUsedInfo = New-Object System.Collections.Specialized.OrderedDictionary
 
@@ -364,13 +450,17 @@ function Out-PSModuleCallGraph() {
                 $CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
             }
         }
-        Write-Verbose -Message "$($PrivateFunctions.Count) private function found in the $($Module.Name)"
+        Write-Verbose -Message "$($PrivateFunctions.Count) private function/s found in the $($Module.Name)"
+        Write-Verbose -Message "CallGraphObjects count is > $($CallGraphObjects.Count)"
 
         <#
             - Analyze Public functions in the module.
         #>
         # Parse the AST of the public funtions to discover the CommandArguments used
         foreach ($PublicFunction in $PublicFunctions) {
+            # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation. Need to declare it here. If not "the past" iterated Public function PublicFunctionCommandHierarchy will be added to the CallGraphObjects collection.
+            [System.Collections.ArrayList]$PublicFunctionCommandHierarchy = New-Object System.Collections.ArrayList
+
             # Tokenize the AST
             $ast = [System.Management.Automation.PSParser]::Tokenize( $($PublicFunction.Definition), [ref]$null)
 
@@ -378,9 +468,6 @@ function Out-PSModuleCallGraph() {
             $CommandsUsed = $ast.where( { $_.Type -eq "Command" } )
 
             if ($null -ne $CommandsUsed) {
-                # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation.
-                [System.Collections.ArrayList]$PublicFunctionCommandHierarchy = New-Object System.Collections.ArrayList
-
                 # Ordered collection to hold the commands found in the command/function being analyzed
                 [System.Collections.ArrayList]$CommandsUsedInfo = New-Object System.Collections.Specialized.OrderedDictionary
 
@@ -439,6 +526,9 @@ function Out-PSModuleCallGraph() {
         <#
             - Create the Graph
         #>
+        # Determine the coloring options to use when generating the graph
+
+        # Generate the graph
         $graphData = Graph ModuleCallGraph -Attributes @{rankdir=$RealGraphDirection} {
             # Graph the root node. To which all other nodes will be rooted.
             Node ProjectRoot -Attribute @{label="$($Module.Name)";shape='invhouse'}
@@ -450,6 +540,7 @@ function Out-PSModuleCallGraph() {
 
                 # Control that the command/function actually used any other commands/functions
                 if ($CallGraphObject.Commands.CommandsUsedInfo.Count -gt 0) {
+                    Write-Verbose -Message "Command count is $($CallGraphObject.Commands.CommandsUsedInfo.Count) for the command named $($CallGraphObject.Affiliation)"
                     if ($CallGraphObject.Type -eq "PublicCommands") {
                         # "Attach" the public command/function to the root node
                         Edge ProjectRoot, $CallGraphObject.Affiliation -Attributes @{label="Public"}

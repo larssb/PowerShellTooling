@@ -14,7 +14,8 @@
     "spellright.documentTypes": [
         "markdown",
         "latex",
-        "plaintext"
+        "plaintext",
+        "powershell"
     ],
 
     //-------- Workbench settings --------

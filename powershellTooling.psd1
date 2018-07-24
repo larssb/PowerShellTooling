@@ -34,15 +34,15 @@
         'Get-PSProgramFilesModulesPath'
         'Get-PublicFunctions'
         'Get-xScheduledTask'
+        'import-jsonFile'
         'initialize-log4net'
         'New-ScheduledJob'
-        'out-functionHierarchy'
+        'Out-PSModuleCallGraph'
+        'Send-Info'
         'Set-xScheduledTask'
         'start-externalSoftware'
         'test-powershellRunMode'
-        'import-jsonFile'
-        'Send-Info'
-        )
+    )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport = @()
