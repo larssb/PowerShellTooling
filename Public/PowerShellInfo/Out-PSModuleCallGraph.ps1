@@ -338,6 +338,9 @@ function Out-PSModuleCallGraph() {
         }
         Write-Verbose -Message "Folders to include > $($FoldersToInclude | Out-String)"
 
+# I'm DOING things wrong here. Excluding certain folders but not respecting that in the below. As e.g. the modulebase is included and Get-ChildItem -Recurse is used files in folders
+# That are supposed to excluded gets included. Consider using Get-iTem instead.
+
         # Get PS1 files in non-excluded folders
         [System.Collections.ArrayList]$PS1Files = New-Object System.Collections.ArrayList
         foreach ($FolderToInclude in $FoldersToInclude) {
@@ -400,7 +403,7 @@ function Out-PSModuleCallGraph() {
                                 Dot-sourcing not used as it cannot not help us catch inline functions or functions that in other ways is hidden.
                             #>
                             # Get all GroupStart & GroupEnd types, from the StartLine of the last declared function in the file. Where content is either "{" or "}"
-                            $ASTObjects = $ast.where( { $_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd" -and $_.StartLine -ge $DeclaredFunction.Startline -and $_.Content -eq "{" -or $_.Content -eq "}" } )
+                            $ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $DeclaredFunction.Startline) -and ($_.Content -eq "{" -or $_.Content -eq "}") } )
 
                             # Counters for "{" GroupStart's minus "}" GroupEnd's
                             $GroupStartCounter = 0
@@ -427,7 +430,7 @@ function Out-PSModuleCallGraph() {
                                     # No need to continue the loop. The closing bracket has been found.
                                     break
                                 }
-                            }
+                            } # End of foreach on the ASTObjects collection
                         } else {
                             [Bool]$ParseByEndline = $false
                         }
