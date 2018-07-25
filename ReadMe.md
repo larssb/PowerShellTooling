@@ -31,6 +31,9 @@ Functions that helps you interact with `Scheduled Tasks` on Windows or `cron` on
 
 A collection of functions that helps you get info on PowerShell. System-wide, module specific and the PowerShell session/instance state.
 
+- Out-PSModuleCallGraph: Is a function that generates a call-graph on a PowerShell module. A lighthearted description would be > It helps you
+know what you are doing.
+
 ## SystemInfo
 
 These functions gives you system info such as what type of OS it is. The hostname of the system and so forth.

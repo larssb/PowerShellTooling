@@ -108,7 +108,7 @@ function Out-PSModuleCallGraph() {
         if ($PSBoundParameters.ContainsKey('OutputPath')) {
             # Validate the specified path
             if (-not (Test-Path -Path $OutputPath)) {
-                Write-Error -Exception "The path > $OutputPath, does not exist. Out-PSModuleCallGraph will use a default path instead."
+                Write-Output "The path > $OutputPath, does not exist. Out-PSModuleCallGraph will use a default path instead."
                 $GraphOutputPath = Join-Path -Path $home -ChildPath $FileName
             } else {
                 # Set the path to the path specified via the OutputPath parameter.
@@ -324,17 +324,30 @@ function Out-PSModuleCallGraph() {
         <#
             - Analyze private functions in the module
         #>
-        # Get all non-excluded PS1 files
+        # Declare a collection to hold folders to include
+        [System.Collections.ArrayList]$FoldersToInclude = New-Object System.Collections.ArrayList
+
+        # Add the modulebase itself to the FoldersToInclude collection
+        $ModuleBaseFolder = Get-Item -Path $Module.ModuleBase
+        $FoldersToInclude.Add($ModuleBaseFolder) | Out-Null
+
+        # Add folders underneath the module modulebase
+        $ModuleSubFolders = Get-ChildItem -Directory -Exclude $FolderExclusionList -Path $Module.ModuleBase -Recurse
+        foreach ($ModuleSubFolder in $ModuleSubFolders) {
+            $FoldersToInclude.Add($ModuleSubFolder) | Out-Null
+        }
+        Write-Verbose -Message "Folders to include > $($FoldersToInclude | Out-String)"
+
+        # Get PS1 files in non-excluded folders
         [System.Collections.ArrayList]$PS1Files = New-Object System.Collections.ArrayList
-        $FoldersToInclude = Get-ChildItem -Directory -Exclude $FolderExclusionList -Path $Module.ModuleBase -Recurse
         foreach ($FolderToInclude in $FoldersToInclude) {
+            Write-Verbose -Message "Folder to include fullname > $($FolderToInclude.FullName | Out-String)"
             $files = (Get-ChildItem -Path $FolderToInclude.FullName -Filter '*.ps1' -Recurse)
             foreach ($file in $files) {
                 $PS1Files.Add($file) | Out-Null
             }
         }
-# SOMETHING COMPLETELY WRONG WHEN ANALYZING PLASTER AND PESTER....troubleshoot! Very few files are included. And use excludedfolders
-# LIKELY the modulebase....its version based
+
         # Remove potential duplicates in the PS1Files collection. Duplicates can happen in the above because a file can be in a sub-folder that is read multiple times in the above.
         [Array]$PS1Files = $PS1Files | Sort-Object -Unique
         Write-Verbose -Message "PS1 files to analyze > $($PS1Files.Name | Out-String)"
@@ -374,10 +387,47 @@ function Out-PSModuleCallGraph() {
                         if (-not ($IdxOfThisDeclaredFunction+1 -gt $DeclaredFunctions.Count-1) ) {
                             [Bool]$ParseByEndline = $true
 
-                            # Get the startline of the next function
+                            # Get the start-line of the next function
                             $NextItemInDeclaredFunctions = $DeclaredFunctions.Item($IdxOfThisDeclaredFunction+1)
                             Write-Verbose -Message "Next item is > $($NextItemInDeclaredFunctions | Out-String)"
+                            $ParseStartLine = $DeclaredFunction.StartLine
                             $ParseEndLine = $NextItemInDeclaredFunctions.StartLine-1
+                        } elseif ($DeclaredFunctions.Count -gt 1) {
+                            <#
+                                - We know that there are more than one funtion & the current function being iterated over is the last declared function in the file.
+                                However we still need to parse ONLY this function.
+
+                                Dot-sourcing not used as it cannot not help us catch inline functions or functions that in other ways is hidden.
+                            #>
+                            # Get all GroupStart & GroupEnd types, from the StartLine of the last declared function in the file. Where content is either "{" or "}"
+                            $ASTObjects = $ast.where( { $_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd" -and $_.StartLine -ge $DeclaredFunction.Startline -and $_.Content -eq "{" -or $_.Content -eq "}" } )
+
+                            # Counters for "{" GroupStart's minus "}" GroupEnd's
+                            $GroupStartCounter = 0
+                            $GroupEndCounter = 0
+
+                            # Run over the identified GroupStart's & GroupEnd's of content type "{" or "}" to find our function endline.
+                            foreach ($ASTObject in $ASTObjects) {
+                                if ($ASTObject.Content -eq "{") {
+                                    $GroupStartCounter++
+                                } else {
+                                    $GroupEndCounter++
+                                }
+
+                                Write-Verbose -Message "Result of calculating GroupStartCounter and GroupEndCounter = $($GroupStartCounter-$GroupEndCounter)"
+                                # Control if we found our closing function bracket ( } )
+                                if ($GroupStartCounter-$GroupEndCounter -eq 0) {
+                                    # Register the line of the closing bracket. Which is the line to parse by, when looking for commands used by the function
+                                    $ParseEndLine = $ASTObject.Endline
+                                    Write-Verbose -Message "The endline to parse to. Related to the last function in the file is determined to be > $($ParseEndLine)"
+
+                                    # Fetch the startline of the current function being iterated. As this wherefrom the AST should be parsed when looking for commands used by the function
+                                    $ParseStartLine = $DeclaredFunction.StartLine
+
+                                    # No need to continue the loop. The closing bracket has been found.
+                                    break
+                                }
+                            }
                         } else {
                             [Bool]$ParseByEndline = $false
                         }
@@ -388,7 +438,7 @@ function Out-PSModuleCallGraph() {
                     # Parse for commandarguments used by this function
                     if ($ParseByEndline) {
                         Write-Verbose -Message "Parsing by endline. Line to parse to is > $ParseEndLine"
-                        $CommandsUsed = $ast.where( { $_.Type -eq "Command" -and $_.EndLine -le $ParseEndLine } )
+                        $CommandsUsed = $ast.where( { $_.Type -eq "Command" -and $_.StartLine -ge $ParseStartLine -and $_.EndLine -le $ParseEndLine } )
                     } else {
                         Write-Verbose -Message "Not parsing by endline."
                         $CommandsUsed = $ast.where( { $_.Type -eq "Command" } )
@@ -445,12 +495,12 @@ function Out-PSModuleCallGraph() {
                 } # End of conditional on the function scope (private or public).
             } # End of foreach on each $DeclaredFunction in $DeclaredFunctions
 
-            if ($null -ne $FunctionCommandHierarchy) {
+            if ($FunctionCommandHierarchy.Count -gt 0) {
                 # Add the result of analyzing the PS1 file & its commands/functions to the CallGraphObjects collection
                 $CallGraphObjects.Add($FunctionCommandHierarchy) | Out-Null
             }
         }
-        Write-Verbose -Message "$($PrivateFunctions.Count) private function/s found in the $($Module.Name)"
+        Write-Verbose -Message "$($PrivateFunctions.Count) private function/s found in the $($Module.Name) module."
         Write-Verbose -Message "CallGraphObjects count is > $($CallGraphObjects.Count)"
 
         <#
@@ -528,74 +578,87 @@ function Out-PSModuleCallGraph() {
         #>
         # Determine the coloring options to use when generating the graph
 
+# ERROR: Now there is an issue with the uniqueness of the number added to a node. There are still collisions happening. Run Out-PSModuleCallGraph on e.g. HealOps and see it for yourself. DONE FOR TODAY!
+
         # Generate the graph
         $graphData = Graph ModuleCallGraph -Attributes @{rankdir=$RealGraphDirection} {
             # Graph the root node. To which all other nodes will be rooted.
             Node ProjectRoot -Attribute @{label="$($Module.Name)";shape='invhouse'}
 
+            # Simple counter for having a number to add to graph elements where duplicate elements are needed.
+            $GraphElementNumber = 0
+
             # Create nodes on the graph on all the analyzed data
             foreach ($CallGraphObject in $CallGraphObjects) {
-                # Get the index of the current CallGraphObject.
-                [int]$IdxOfThisCallGraphObject = $CallGraphObjects.IndexOf($CallGraphObject)
+                # Iterate over each potential CommandHierarchy object (from either the PublicCommandHierarchy or the FunctionCommandHierarchy collection). If there is only object. Still okay, will only iterate that one time (in bandcamp).
+                foreach ($CommandHierarchy in $CallGraphObject) {
+                    # Get the index of the current CallGraphObject.
+                    #[int]$IdxOfThisCallGraphObject = $CallGraphObjects.IndexOf($CallGraphObject)
 
-                # Control that the command/function actually used any other commands/functions
-                if ($CallGraphObject.Commands.CommandsUsedInfo.Count -gt 0) {
-                    Write-Verbose -Message "Command count is $($CallGraphObject.Commands.CommandsUsedInfo.Count) for the command named $($CallGraphObject.Affiliation)"
-                    if ($CallGraphObject.Type -eq "PublicCommands") {
-                        # "Attach" the public command/function to the root node
-                        Edge ProjectRoot, $CallGraphObject.Affiliation -Attributes @{label="Public"}
-                    }
+                    # Control that the command/function actually used any other commands/functions
+                    if ($CommandHierarchy.Commands.CommandsUsedInfo.Count -gt 0) {
+                        Write-Verbose -Message "Command count is $($CommandHierarchy.Commands.CommandsUsedInfo.Count) for the command named $($CommandHierarchy.Affiliation)"
+                        if ($CommandHierarchy.Type -eq "PublicCommands") {
+                            # "Attach" the public command/function to the root node
+                            Edge ProjectRoot, $CommandHierarchy.Affiliation -Attributes @{label="Public"}
+                        }
 
-                    # Create subgraphs for each command/function
-                    SubGraph -Attributes @{style='filled';color='lightgrey'} -ScriptBlock {
-                        # Counter used to annotate the nodes with the chronological order by which the command was called
-                        $CommandCounter = 1
+                        # Create subgraphs for each command/function
+                        SubGraph -Attributes @{style='filled';color='lightgrey'} -ScriptBlock {
+                            # Counter used to annotate the nodes with the chronological order by which the command was called
+                            $CommandCounter = 1
 
-                        # Create nodes for all the commands/functions the command/function uses
-                        $CallGraphObject.Commands.GetEnumerator() | ForEach-Object {
-                            if ($CallGraphObject.Type -eq "PrivateCommands") {
-                                # Create a unique node for the private command and style it
-                                Node $CallGraphObject.Affiliation
-                                Node @{style='filled';color='white'}
+                            # Create nodes for all the commands/functions the command/function uses
+                            $CommandHierarchy.Commands.GetEnumerator() | ForEach-Object {
+                                if ($CommandHierarchy.Type -eq "PrivateCommands") {
+                                    # Create a unique node for the private command and style it
+                                    Node $CommandHierarchy.Affiliation
+                                    Node @{style='filled';color='white'}
 
-                                # Graph a relationship between the private command & the command/s it uses
-                                Edge $CallGraphObject.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
-                            } else {
-                                # Set the style of the nodes created in this section
-                                Node @{style='filled';color='white'}
-
-                                if ($_.CommandScope -eq "Private") {
-                                    # Create a duplicate node for a private command used by this command. Duplicate because the command already has its own subgraph. But we want it to be graphed underneath this command also.
-                                    Node -Name "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$($_.CommandName)"}
-
-                                    # Graph a relationship between the private command & the command that uses it
-                                    Edge $CallGraphObject.Affiliation, "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
-
-                                    # Graph a relationship between the private command in this subgraph to the subgraph where the private command is fully graphed.
-                                    Edge "$($_.CommandName)$IdxOfThisCallGraphObject", $_.CommandName -Attributes @{arrowsize=0}
+                                    # Graph a relationship between the private command & the command/s it uses
+                                    Edge $CommandHierarchy.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
                                 } else {
-                                    # Create a duplicate node for the command used by this command
-                                    Node -Name "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$($_.CommandName)"}
+                                    # Set the style of the nodes created in this section
+                                    Node @{style='filled';color='white'}
 
-                                    # Graph a relationship between this command & the command it uses
-                                    Edge $CallGraphObject.Affiliation, "$($_.CommandName)$IdxOfThisCallGraphObject" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                    if ($_.CommandScope -eq "Private") {
+                                        # Create a duplicate node for a private command used by this command. Duplicate because the command already has its own subgraph. But we want it to be graphed underneath this command also.
+                                        Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
+
+                                        # Graph a relationship between the private command & the command that uses it
+                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+
+                                        # Graph a relationship between the private command in this subgraph to the subgraph where the private command is fully graphed.
+                                        Edge "$($_.CommandName)$GraphElementNumber", $_.CommandName -Attributes @{arrowsize=0}
+                                    } else {
+                                        # Create a duplicate node for the command used by this command
+                                        Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
+
+                                        # Graph a relationship between this command & the command it uses
+                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                    }
                                 }
-                            }
-                            $CommandCounter++
-                        }
-                    }
-                } else {
-                    if ($CallGraphObject.Type -eq "PublicCommands") {
-                        # Create a subgraph. So that the layout of a public function that uses no commands has the same layout as the other public commands.
-                        SubGraph -Attributes @{style="filled";color="lightgrey"} -ScriptBlock {
-                            Node -Name $CallGraphObject.Affiliation
-                        }
 
-                        # Graph a relationship between the project root & the node created for the command/function which uses no commands
-                        Edge ProjectRoot, $CallGraphObject.Affiliation -Attributes @{label="Public"}
+                                # Add 1 to the CommandCounter. Has to happen here as it on the each single functions command hierarchy level.
+                                $CommandCounter++
+                            }
+                        }
+                    } else {
+                        if ($CommandHierarchy.Type -eq "PublicCommands") {
+                            # Create a subgraph. So that the layout of a public function that uses no commands has the same layout as the other public commands.
+                            SubGraph -Attributes @{style="filled";color="lightgrey"} -ScriptBlock {
+                                Node -Name $CommandHierarchy.Affiliation
+                            }
+
+                            # Graph a relationship between the project root & the node created for the command/function which uses no commands
+                            Edge ProjectRoot, $CommandHierarchy.Affiliation -Attributes @{label="Public"}
+                        }
                     }
-                }
-            }
+
+                    # Add 1 to the GrapHElementNumber. This has to happen at this level. If not, Graph elements (function) that uses no commands will cause a GraphElementNumber to be used twice.
+                    $GraphElementNumber++
+                } # End of foreach on either the FunctionCommandHierarchy or PublicCommandHierarchy collection.
+            } # End of of foreach CallGraphObject in the CallGraphObjects collection
         }
 
         # Output the graph
