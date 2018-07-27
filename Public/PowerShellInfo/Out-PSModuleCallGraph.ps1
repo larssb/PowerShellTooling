@@ -338,21 +338,18 @@ function Out-PSModuleCallGraph() {
         }
         Write-Verbose -Message "Folders to include > $($FoldersToInclude | Out-String)"
 
-# I'm DOING things wrong here. Excluding certain folders but not respecting that in the below. As e.g. the modulebase is included and Get-ChildItem -Recurse is used files in folders
-# That are supposed to excluded gets included. Consider using Get-iTem instead.
-
         # Get PS1 files in non-excluded folders
         [System.Collections.ArrayList]$PS1Files = New-Object System.Collections.ArrayList
         foreach ($FolderToInclude in $FoldersToInclude) {
             Write-Verbose -Message "Folder to include fullname > $($FolderToInclude.FullName | Out-String)"
-            $files = (Get-ChildItem -Path $FolderToInclude.FullName -Filter '*.ps1' -Recurse)
+            $files = (Get-Item -Path "$($FolderToInclude.FullName)\*" -Filter '*.ps1')
             foreach ($file in $files) {
                 $PS1Files.Add($file) | Out-Null
             }
         }
 
         # Remove potential duplicates in the PS1Files collection. Duplicates can happen in the above because a file can be in a sub-folder that is read multiple times in the above.
-        [Array]$PS1Files = $PS1Files | Sort-Object -Unique
+        #[Array]$PS1Files = $PS1Files | Sort-Object -Unique
         Write-Verbose -Message "PS1 files to analyze > $($PS1Files.Name | Out-String)"
 
         # Run through all the retrieved *.PS1 files >> to identify declared functions in them
@@ -601,6 +598,7 @@ function Out-PSModuleCallGraph() {
                     # Control that the command/function actually used any other commands/functions
                     if ($CommandHierarchy.Commands.CommandsUsedInfo.Count -gt 0) {
                         Write-Verbose -Message "Command count is $($CommandHierarchy.Commands.CommandsUsedInfo.Count) for the command named $($CommandHierarchy.Affiliation)"
+                        Write-Verbose -Message "Element number is > $GraphElementNumber"
                         if ($CommandHierarchy.Type -eq "PublicCommands") {
                             # "Attach" the public command/function to the root node
                             Edge ProjectRoot, $CommandHierarchy.Affiliation -Attributes @{label="Public"}
@@ -619,7 +617,23 @@ function Out-PSModuleCallGraph() {
                                     Node @{style='filled';color='white'}
 
                                     # Graph a relationship between the private command & the command/s it uses
-                                    Edge $CommandHierarchy.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                    #Edge $CommandHierarchy.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+
+                                    if ($_.CommandScope -eq "Private") {
+                                        # Create a duplicate node for a private command used by this private command. Duplicate because the command already has its own subgraph. But we want it to be graphed underneath this command also.
+                                        Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
+
+                                        # Graph a relationship between the private command & the private command that uses it
+                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+
+                                        # Graph a relationship between the private command in this subgraph to the subgraph where the private command is fully graphed.
+                                        Edge "$($_.CommandName)$GraphElementNumber", $_.CommandName -Attributes @{arrowsize=0}
+                                    } else {
+                                        # Create a duplicate node for the command used by this command
+                                        Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
+                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                    }
+                                    # DER SKAL GØRES NOGET HVIS DET ER PRIVATE TIL PRIVATE....
                                 } else {
                                     # Set the style of the nodes created in this section
                                     Node @{style='filled';color='white'}
