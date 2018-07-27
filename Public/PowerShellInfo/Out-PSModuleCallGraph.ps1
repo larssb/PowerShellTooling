@@ -352,7 +352,31 @@ function Out-PSModuleCallGraph() {
         #[Array]$PS1Files = $PS1Files | Sort-Object -Unique
         Write-Verbose -Message "PS1 files to analyze > $($PS1Files.Name | Out-String)"
 
-        # Run through all the retrieved *.PS1 files >> to identify declared functions in them
+        <#
+            - Derive all the functions in the PS1Files found to be analyzed. By doing this we have a way to, later on, determine if a command >> if not a public command >> is either "External" or "Private".
+            This especially covers the case where a command found is not part of the module being analyzed. So it is "External". However, the module might not, for 'x' reason be on the environment
+            where Out-PSModuleCallGraph is being executed. Therefore, we have to know all the functions declared in the module. To do lookups into a module private functions collection. So if
+            'x' command is not public >> lookup private function collection >> if not in there == command is "External".
+        #>
+        foreach ($PS1File in $PS1Files) {
+            # Tokenize the content of the file
+            $ast = [System.Management.Automation.PSParser]::Tokenize( (Get-Content -Path $PS1File.FullName), [ref]$null)
+
+            # Identify the declared functions in the file
+            $DeclaredFunctions = $ast.where( { $_.Type -eq "Keyword" -and $_.Content -eq "function" } )
+
+            foreach ($DeclaredFunction in $DeclaredFunctions) {
+                # Derive the name of the declared function
+                [String]$FunctionName = ($ast.where( { $_.Startline -eq $DeclaredFunction.StartLine -and $_.Type -eq "CommandArgument" } )).Content
+
+                if (-not $PublicFunctions.Name.Contains($FunctionName)) {
+                    $PrivateFunctions.Add($FunctionName) | Out-Null
+                    Write-Verbose -Message "Found a private function named $FunctionName"
+                }
+            }
+        }
+
+        # Run through all the PS1Files found to be analyzed. Get commands they use. Scope of these and so forth.
         foreach ($PS1File in $PS1Files) {
             # Collection to hold the commands used by the function. Ordered to reflect the point-in-time of each commad invocation. Need to declare it here. If not "the past" iterated PS1File FunctionCommandHierarchy will be added to the CallGraphObjects collection.
             [System.Collections.ArrayList]$FunctionCommandHierarchy = New-Object System.Collections.ArrayList
@@ -360,8 +384,8 @@ function Out-PSModuleCallGraph() {
             # Tokenize the content of the file
             $ast = [System.Management.Automation.PSParser]::Tokenize( (Get-Content -Path $PS1File.FullName), [ref]$null)
 
-            # Identify the declared functions in the file
-            $DeclaredFunctions = $ast.where( { $_.Type -eq "Keyword" -and $_.Content -eq "function" } )
+            # Identify the declared functions in the file. Goes from top to bottom. So the first declared function will be at idx 0
+            [Array]$DeclaredFunctions = $ast.where( { $_.Type -eq "Keyword" -and $_.Content -eq "function" } )
             Write-Verbose -Message "There is $($DeclaredFunctions.Count) declared functions in the file named $($PS1File.Name)."
 
             foreach ($DeclaredFunction in $DeclaredFunctions) {
@@ -370,9 +394,6 @@ function Out-PSModuleCallGraph() {
 
                 # Control if the function is a public function in the module being analyzed
                 if (-not $PublicFunctions.Name.Contains($FunctionName)) {
-                    $PrivateFunctions.Add($FunctionName) | Out-Null
-                    Write-Verbose -Message "Found a private function named $FunctionName"
-
                     # Parse the AST of the private function to find the CommandArguments used
                     if ($DeclaredFunctions.Count -gt 1) {
                         <#
@@ -390,8 +411,78 @@ function Out-PSModuleCallGraph() {
                             # Get the start-line of the next function
                             $NextItemInDeclaredFunctions = $DeclaredFunctions.Item($IdxOfThisDeclaredFunction+1)
                             Write-Verbose -Message "Next item is > $($NextItemInDeclaredFunctions | Out-String)"
-                            $ParseStartLine = $DeclaredFunction.StartLine
-                            $ParseEndLine = $NextItemInDeclaredFunctions.StartLine-1
+
+                            if ($NextItemInDeclaredFunctions.StartColumn -gt $DeclaredFunction.StartColumn) {
+                                <#
+                                    - There are inline functions in the file.
+                                #>
+                                # Add....
+                                [System.Collections.ArrayList]$InlineFunctions = New-Object System.Collections.Specialized.OrderedDictionary
+                                $InlineFunctions.Add($NextItemInDeclaredFunctions) | Out-Null
+
+                                # Put the rest of the inline functions of this function into a collection. If any.
+                                if (-not ($IdxOfThisDeclaredFunction+2 -gt $DeclaredFunctions.Count-1)) {
+                                    for ($i = $IdxOfThisDeclaredFunction+2; $i -le $DeclaredFunctions.Count-1; $i++) {
+                                        $InlineFunction = $DeclaredFunctions.Item($i)
+                                        if ($InlineFunction.StartColumn -gt $DeclaredFunction.StartColumn) {
+                                            $InlineFunctions.Add($InlineFunction) | Out-Null
+                                        }
+                                    }
+                                }
+                                Write-Verbose -Message "The inline functions retrived in $FunctionName > $($InlineFunctions | Out-String)"
+
+                                # Collection to hold start & end info on the inline function/s used by this function
+                                [System.Collections.ArrayList]$InlineFunctionsStartEndInfo = New-Object System.Collections.ArrayList
+
+                                # Parse the inline functions. In order to determine the loc (lines of code) to filter out. When parsing the function that uses the inline functions
+                                foreach ($InlineFunction in $InlineFunctions) {
+                                    # Get all GroupStart & GroupEnd types, from the StartLine of the last declared function in the file. Where content is either "{" or "}"
+                                    $ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $InlineFunction.Startline) -and ($_.Content -eq "{" -or $_.Content -eq "}") } )
+                                    Write-Verbose -Message "ASTObjects found > $($ASTObjects | Out-String)"
+
+# FIX TOMORROW > loc 176 in Submit-EntityStateReport is caught. The closing } is caught. So need to do some control on this. Both here and further below where bracket calculations are done.
+
+                                    # Counters for "{" GroupStart's minus "}" GroupEnd's
+                                    $GroupStartCounter = 0
+                                    $GroupEndCounter = 0
+
+                                    # Run over the identified GroupStart's & GroupEnd's of content type "{" or "}" to find our function endline.
+                                    foreach ($ASTObject in $ASTObjects) {
+                                        if ($ASTObject.Content -eq "{") {
+                                            $GroupStartCounter++
+                                        } else {
+                                            $GroupEndCounter++
+                                        }
+
+                                        Write-Verbose -Message "Result of calculating GroupStartCounter and GroupEndCounter = $($GroupStartCounter-$GroupEndCounter)"
+                                        # Control if we found our closing function bracket ( } )
+                                        if ($GroupStartCounter-$GroupEndCounter -eq 0) {
+                                            # Fetch the startline of the current inline function being iterated. As this is wherefrom the AST should be parsed when looking for commands used by the "mother" function
+                                            $ParseStartLine = $InlineFunction.StartLine
+
+                                            # Register the line of the closing bracket. Which is the line to parse by, when looking for commands used by the function
+                                            $ParseEndLine = $ASTObject.Endline
+                                            Write-Verbose -Message "The endline to parse to. Related to the last function in the file is determined to be > $($ParseEndLine)"
+
+                                            # Add it to the collection holding start & end info on the inline functions found in the "mother" function
+                                            $InlineFuncStartEndInfo = @{
+                                                "Endline" = $ParseEndLine
+                                                "StartLine" = $ParseStartLine
+                                            }
+                                            $InlineFunctionsStartEndInfo.Add($InlineFuncStartEndInfo) | Out-Null
+                                            Write-Verbose -Message "InlineFunctionsStartEndInfo now > $($InlineFunctionsStartEndInfo | Out-String)"
+
+                                            # No need to continue the loop. The closing bracket has been found.
+                                            break
+                                        }
+                                    } # End of foreach ASTObject. {} calculating. Start and end of a function
+                                }
+
+                                #
+                            } else {
+                                $ParseStartLine = $DeclaredFunction.StartLine
+                                $ParseEndLine = $NextItemInDeclaredFunctions.StartLine-1
+                            }
                         } elseif ($DeclaredFunctions.Count -gt 1) {
                             <#
                                 - We know that there are more than one funtion & the current function being iterated over is the last declared function in the file.
@@ -435,6 +526,22 @@ function Out-PSModuleCallGraph() {
                         [Bool]$ParseByEndline = $false
                     }
 
+# ERROR HERE: If the function is the first function in the file && there is +1 function in the file it is not enough to parse to the startline-1 of the next function. Nope
+# We should parse the entire file - the other declared functions in the file....this is going to be so great!
+
+<#
+    - PSEUDO for the above issue/challenge.
+
+    1. There can still be more than one function in a file. Where a function uses inline functions.
+        1a. Resulting in the need for still controlling when the next potentianl non-inline function start. Parse to that-1
+    2. It should be okay to go by controlling for column. If column of nextitem -gt $This declaredFunction then $This declaredFunc uses inline functions
+    3. Find out where $this declaredFunc ends. By "calculating" ”{}"
+    4. Get the functions declared
+    5. Foreach inline func declared in $This declaredFunc
+    6. Get their end by calculating "{}"
+    7. Get the commands in $this declaredFunc minus the lines of code of the inline functions
+#>
+
                     # Parse for commandarguments used by this function
                     if ($ParseByEndline) {
                         Write-Verbose -Message "Parsing by endline. Line to parse to is > $ParseEndLine"
@@ -458,16 +565,13 @@ function Out-PSModuleCallGraph() {
                             }
 
                             if ($DebugCommandsToExclude.Count -eq 0 -or $DebugCommandsToExclude -notcontains $CommandName) {
-                                # Control the scope and type of the command. If it is an external, a public or a private command
-                                $GetCommandData = Get-Command -Name $CommandName -ErrorAction SilentlyContinue # Okay to continue silently. If Get-Command fails to find an ast parsed Command it means that it is 'scope private'.
-                                if ($null -ne $GetCommandData) {
-                                    if ($GetCommandData.ModuleName -notmatch $Module.Name) {
-                                        [String]$CommandScope = "External"
-                                    } else {
-                                        [String]$CommandScope = "Public"
-                                    }
-                                } else {
+                                # Control the scope/type of the command. If it is an external, a public or a private command
+                                if ($PrivateFunctions.Contains($CommandName)) {
                                     [String]$CommandScope = "Private"
+                                } elseif ($PublicFunctions.Contains($CommandName)) {
+                                    [String]$CommandScope = "Public"
+                                } else {
+                                    [String]$CommandScope = "External"
                                 }
                                 Write-Verbose -Message "The command $($CommandName) found in the private function $FunctionName has the following scope > $CommandScope"
 
