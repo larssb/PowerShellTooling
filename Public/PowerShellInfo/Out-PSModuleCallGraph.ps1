@@ -406,6 +406,7 @@ function Out-PSModuleCallGraph() {
 
                         # Ensure that we do not make out of bounds lookups
                         if (-not ($IdxOfThisDeclaredFunction+1 -gt $DeclaredFunctions.Count-1) ) {
+                            # Set semaphore to indicare Parse by function endline.
                             [Bool]$ParseByEndline = $true
 
                             # Get the start-line of the next function
@@ -437,8 +438,8 @@ function Out-PSModuleCallGraph() {
                                 # Parse the inline functions. In order to determine the loc (lines of code) to filter out. When parsing the function that uses the inline functions
                                 foreach ($InlineFunction in $InlineFunctions) {
                                     # Get all GroupStart & GroupEnd types, from the StartLine of the last declared function in the file. Where content is either "{" or "}"
-                                    $ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $InlineFunction.Startline) -and ($_.Content -eq "{" -or $_.Content -eq "}") } )
-                                    Write-Verbose -Message "ASTObjects found > $($ASTObjects | Out-String)"
+                                    $ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $InlineFunction.Startline) -and ($_.Content -match "{" -or $_.Content -eq "}") } )
+                                    #Write-Verbose -Message "ASTObjects found > $($ASTObjects | Out-String)"
 
 # FIX TOMORROW > loc 176 in Submit-EntityStateReport is caught. The closing } is caught. So need to do some control on this. Both here and further below where bracket calculations are done.
 
@@ -448,10 +449,22 @@ function Out-PSModuleCallGraph() {
 
                                     # Run over the identified GroupStart's & GroupEnd's of content type "{" or "}" to find our function endline.
                                     foreach ($ASTObject in $ASTObjects) {
-                                        if ($ASTObject.Content -eq "{") {
-                                            $GroupStartCounter++
+                                        if ($ASTObject.Content -match "@{") {
+                                            # Skip the next ASTObject as it will be the end "}" of a @{} declaration
+                                            [Bool]$SkipNextASTObject = $true
                                         } else {
-                                            $GroupEndCounter++
+                                            [Bool]$SkipNextASTObject = $false
+                                        }
+
+                                        if (-not ($SkipNextASTObject)) {
+                                            if ($ASTObject.Content -eq "{") {
+                                                $GroupStartCounter++
+                                            } else {
+                                                $GroupEndCounter++
+                                            }
+                                        } else {
+                                            # There was a "@{" hashtable declaration start. So the next end "}" should be skipped. Simply doing that be subtracting 1 from the GroupEndCounter
+                                            $GroupEndCounter--
                                         }
 
                                         Write-Verbose -Message "Result of calculating GroupStartCounter and GroupEndCounter = $($GroupStartCounter-$GroupEndCounter)"
@@ -462,7 +475,6 @@ function Out-PSModuleCallGraph() {
 
                                             # Register the line of the closing bracket. Which is the line to parse by, when looking for commands used by the function
                                             $ParseEndLine = $ASTObject.Endline
-                                            Write-Verbose -Message "The endline to parse to. Related to the last function in the file is determined to be > $($ParseEndLine)"
 
                                             # Add it to the collection holding start & end info on the inline functions found in the "mother" function
                                             $InlineFuncStartEndInfo = @{
@@ -478,7 +490,59 @@ function Out-PSModuleCallGraph() {
                                     } # End of foreach ASTObject. {} calculating. Start and end of a function
                                 }
 
-                                #
+                                <#
+                                    - Get the Parse start & end line for the function containing the inline function/s
+                                #>
+                                # Get all GroupStart & GroupEnd types, from the StartLine of the FIRST declared function in the file. Where content is either -matching "{" or exactly "}"
+                                $ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $DeclaredFunction.Startline) -and ($_.Content -match "{" -or $_.Content -eq "}") } )
+
+                                # Counters for "{" GroupStart's minus "}" GroupEnd's
+                                $GroupStartCounter = 0
+                                $GroupEndCounter = 0
+
+                                # Run over the identified GroupStart's & GroupEnd's of content type "{" or "}" to find our function endline.
+                                foreach ($ASTObject in $ASTObjects) {
+                                    if ($ASTObject.Content -match "@{") {
+                                        # Skip the next ASTObject as it will be the end "}" of a @{} declaration
+                                        [Bool]$SkipNextASTObject = $true
+                                    } else {
+                                        [Bool]$SkipNextASTObject = $false
+                                    }
+
+                                    if (-not ($SkipNextASTObject)) {
+                                        if ($ASTObject.Content -eq "{") {
+                                            $GroupStartCounter++
+                                        } else {
+                                            $GroupEndCounter++
+                                        }
+                                    } else {
+                                        # There was a "@{" hashtable declaration start. So the next end "}" should be skipped. Simply doing that be subtracting 1 from the GroupEndCounter
+                                        $GroupEndCounter--
+                                    }
+
+                                    Write-Verbose -Message "Result of calculating GroupStartCounter and GroupEndCounter = $($GroupStartCounter-$GroupEndCounter)"
+                                    # Control if we found our closing function bracket ( } )
+                                    if ($GroupStartCounter-$GroupEndCounter -eq 0) {
+                                        # Fetch the startline of the current inline function being iterated. As this is wherefrom the AST should be parsed when looking for commands used by the "mother" function
+                                        $ParseStartLine = $DeclaredFunction.StartLine
+
+                                        # Register the line of the closing bracket. Which is the line to parse by, when looking for commands used by the function
+                                        $ParseEndLine = $ASTObject.Endline
+
+                                        # Add it to the collection holding start & end info on the inline functions found in the "mother" function
+<#                                         $InlineFuncStartEndInfo = @{
+                                            "Endline" = $ParseEndLine
+                                            "StartLine" = $ParseStartLine
+                                        }
+                                        $InlineFunctionsStartEndInfo.Add($InlineFuncStartEndInfo) | Out-Null
+                                        Write-Verbose -Message "InlineFunctionsStartEndInfo now > $($InlineFunctionsStartEndInfo | Out-String)" #>
+
+                                        Write-Verbose -Message "The parse start and endline for the func containing inline function/s is > Start: $($ParseStartLine). End: $($ParseEndLine)"
+
+                                        # No need to continue the loop. The closing bracket has been found.
+                                        break
+                                    }
+                                } # End of foreach ASTObject. {} calculating. Start and end of a function
                             } else {
                                 $ParseStartLine = $DeclaredFunction.StartLine
                                 $ParseEndLine = $NextItemInDeclaredFunctions.StartLine-1
@@ -490,6 +554,9 @@ function Out-PSModuleCallGraph() {
 
                                 Dot-sourcing not used as it cannot not help us catch inline functions or functions that in other ways is hidden.
                             #>
+                            # Set semaphore to indicare Parse by function endline.
+                            [Bool]$ParseByEndline = $true
+
                             # Get all GroupStart & GroupEnd types, from the StartLine of the last declared function in the file. Where content is either "{" or "}"
                             $ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $DeclaredFunction.Startline) -and ($_.Content -eq "{" -or $_.Content -eq "}") } )
 
