@@ -319,6 +319,71 @@ function Out-PSModuleCallGraph() {
             "where" = "Where-Object"
             "wjb" = "Wait-Job"
         }
+
+        ############################
+        # PRIVATE HELPER FUNCTIONS #
+        ############################
+        function Filter-AST() {
+            <#
+            .DESCRIPTION
+                Long description
+            .INPUTS
+                Inputs (if any)
+            .OUTPUTS
+                Outputs (if any)
+            .NOTES
+                General notes
+            .EXAMPLE
+                PS C:\> Get-ASTObjects -AST $AST
+                Explanation of what the example does
+            .PARAMETER AST
+                The collection of AST objects to parse/filter.
+            .PARAMETER ASTQuery
+                The query to perform on the AST collection specified via the AST parameter.
+            .PARAMETER LinesToExclude
+                A hashtable of lines to exclude when parsing/filtering the AST
+            #>
+
+            # Define parameters
+            [CmdletBinding(DefaultParameterSetName = "Default")]
+            [OutputType([System.Management.Automation.PSToken])]
+            [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs")] # Filter-AST is a private inline function & the name is more telling by using "Filter-...."
+            param(
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [System.Management.Automation.PSToken]$AST,
+                [Parameter()]
+                [ValidateScript({$_.Count -ge 1})] # Validate that an empty array is not given to the parameter.
+                [Hashtable]$LinesToExclude,
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [String]$ASTQuery
+            )
+
+            #############
+            # Execution #
+            #############
+            Begin {}
+            Process {
+                # Perform the query in ASTQuery
+                $ASTObjects = $AST.Where($ASTQuery)
+
+                if ($ASTObjects.Count -ge 1) {
+                    if ($PSBoundParameters.Contains('LinesToExclude')) {
+                        # Filter out the lines specified in the collection specified via the LinesToExclude parameter
+                        foreach ($ASTObject in $ASTObjects) {
+                            $ASTObject.StartLine..$ASTObject.Endline -in $LinesToExclude
+                        }
+                    }
+                } else {
+                    throw "No AST objects retrieved via the .Where() call. The query tried was > $ASTQuery. Cannot continue!"
+                }
+            }
+            End {
+                # Return the objects retrieved from filtering the AST
+                $ASTObjects
+            }
+        }
     }
     Process {
         <#
