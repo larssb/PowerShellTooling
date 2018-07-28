@@ -328,14 +328,18 @@ function Out-PSModuleCallGraph() {
             .DESCRIPTION
                 Long description
             .INPUTS
-                Inputs (if any)
+                [System.Collections.ObjectModel.Collection`1[System.Management.Automation.PSToken]]AST representing the AST collection to perform a filter on.
+                [String]ASTQuery representing the query to perfom on the AST.
+                [Hashtable]LinesToExclude. Representing the lines to excllude.
+
+                ASTQuery and LinesToExclude cannot be used at the same time. They are mutually exclusive.
             .OUTPUTS
-                Outputs (if any)
+                A collection of type [System.Collections.ObjectModel.Collection`1[System.Management.Automation.PSToken]] containing the AST objects after filtering on the AST coming via the AST parameter.
             .NOTES
-                General notes
+                <none>
             .EXAMPLE
-                PS C:\> Get-ASTObjects -AST $AST
-                Explanation of what the example does
+                PS C:\> Filter-AST -AST $AST -ASTQuery $ASTQuery
+                Calls Filter-AST to run the query specified in the $ASTQuery variable on the AST coming in via the AST parameter.
             .PARAMETER AST
                 The collection of AST objects to parse/filter.
             .PARAMETER ASTQuery
@@ -347,17 +351,18 @@ function Out-PSModuleCallGraph() {
             # Define parameters
             [CmdletBinding(DefaultParameterSetName = "Default")]
             [OutputType([System.Management.Automation.PSToken])]
-            [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs")] # Filter-AST is a private inline function & the name is more telling by using "Filter-...."
+            [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs","")] # Filter-AST is a private inline function & the name is more telling by using "Filter-...."
             param(
-                [Parameter(Mandatory)]
+                [Parameter(Mandatory, ParameterSetName="ASTQuery")]
+                [Parameter(Mandatory, ParameterSetName="LinesToExclude")]
                 [ValidateNotNullOrEmpty()]
-                [System.Management.Automation.PSToken]$AST,
-                [Parameter()]
+                [System.Collections.ObjectModel.Collection`1[System.Management.Automation.PSToken]]$AST,
+                [Parameter(Mandatory, ParameterSetName="ASTQuery")]
+                [ValidateNotNullOrEmpty()]
+                [String]$ASTQuery,
+                [Parameter(Mandatory, ParameterSetName="LinesToExclude")]
                 [ValidateScript({$_.Count -ge 1})] # Validate that an empty array is not given to the parameter.
-                [Hashtable]$LinesToExclude,
-                [Parameter(Mandatory)]
-                [ValidateNotNullOrEmpty()]
-                [String]$ASTQuery
+                [System.Collections.ArrayList]$LinesToExclude
             )
 
             #############
@@ -365,19 +370,34 @@ function Out-PSModuleCallGraph() {
             #############
             Begin {}
             Process {
-                # Perform the query in ASTQuery
-                $ASTObjects = $AST.Where($ASTQuery)
-
-                if ($ASTObjects.Count -ge 1) {
-                    if ($PSBoundParameters.Contains('LinesToExclude')) {
-                        # Filter out the lines specified in the collection specified via the LinesToExclude parameter
-                        foreach ($ASTObject in $ASTObjects) {
-                            $ASTObject.StartLine..$ASTObject.Endline -in $LinesToExclude
-                        }
-                    }
-                } else {
-                    throw "No AST objects retrieved via the .Where() call. The query tried was > $ASTQuery. Cannot continue!"
+                # Perform the query in ASTQuery on the AST
+                if ($PSBoundParameters.ContainsKey('ASTQuery')) {
+                    $ASTObjects = $AST.Where( { $ASTQuery } )
                 }
+
+                # Filter out the lines specified in the LinesToExclude collection
+                if ($PSBoundParameters.ContainsKey('LinesToExclude')) {
+                    <# foreach ($item in $LinesToExclude) {
+                        $ASTObject.StartLine..$ASTObject.Endline
+                        foreach ($ASTObject in $ASTObjects) {
+                        }
+                    } #>
+                    #$ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $InlineFunction.Startline) -and ($_.Content -match "{" -or $_.Content -eq "}") } )
+                    foreach ($item in $LinesToExclude) {
+                        Write-Verbose -Message "Item start line > $($Item.StartLine). Item end line > $($Item.EndLine)"
+                        $ASTObjects += $AST.Where( { $_.StartLine -notin ($item.StartLine..$item.EndLine)} )
+                        #$ASTObjects += $AST.Where({ ($_.StartLine -lt $item.StartLine) -or ($StartLine -gt $item.EndLine) })
+                    }
+                    Write-Verbose -Message "The ASTObjects after filtering out lines > $($ASTObjects | Out-String)"
+                }
+
+# FÅRK! Er nødt til at finde en måde hvorpå jeg kan kontroller om 'x' AST objekt er i på en $_.StartLine som matcher en line i en af de inline funktioner som "moder" funktionen indeholder.
+# Ovenstående vil jo først udelukke linker, men derefter, hvis 'x' funktion indeholder flere inline funktioner, medtage linjer som i første iteration blev udelukket.
+# Det bliver noget med en dobbelt foreach: yderste må være på item in $linestoexclude >> inderste foreach astobject in ast >> remove hvis astobject.startline == item.startline
+
+                #else {
+                #    throw "No AST objects retrieved via .Where(). The query tried was > $ASTQuery. Cannot continue!"
+                #}
             }
             End {
                 # Return the objects retrieved from filtering the AST
@@ -412,9 +432,6 @@ function Out-PSModuleCallGraph() {
                 $PS1Files.Add($file) | Out-Null
             }
         }
-
-        # Remove potential duplicates in the PS1Files collection. Duplicates can happen in the above because a file can be in a sub-folder that is read multiple times in the above.
-        #[Array]$PS1Files = $PS1Files | Sort-Object -Unique
         Write-Verbose -Message "PS1 files to analyze > $($PS1Files.Name | Out-String)"
 
         <#
@@ -559,55 +576,63 @@ function Out-PSModuleCallGraph() {
                                     - Get the Parse start & end line for the function containing the inline function/s
                                 #>
                                 # Get all GroupStart & GroupEnd types, from the StartLine of the FIRST declared function in the file. Where content is either -matching "{" or exactly "}"
-                                $ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $DeclaredFunction.Startline) -and ($_.Content -match "{" -or $_.Content -eq "}") } )
+                                #$ASTObjects = $ast.where( { ($_.Type -eq "GroupStart" -or $_.Type -eq "GroupEnd") -and ($_.StartLine -ge $DeclaredFunction.Startline) -and ($_.Content -match "{" -or $_.Content -eq "}") } )
 
                                 # Counters for "{" GroupStart's minus "}" GroupEnd's
-                                $GroupStartCounter = 0
-                                $GroupEndCounter = 0
+                                #$GroupStartCounter = 0
+                                #$GroupEndCounter = 0
 
                                 # Run over the identified GroupStart's & GroupEnd's of content type "{" or "}" to find our function endline.
-                                foreach ($ASTObject in $ASTObjects) {
-                                    if ($ASTObject.Content -match "@{") {
+                                #foreach ($ASTObject in $ASTObjects) {
+                                #    if ($ASTObject.Content -match "@{") {
                                         # Skip the next ASTObject as it will be the end "}" of a @{} declaration
-                                        [Bool]$SkipNextASTObject = $true
-                                    } else {
-                                        [Bool]$SkipNextASTObject = $false
-                                    }
+                                #        [Bool]$SkipNextASTObject = $true
+                                #    } else {
+                                #        [Bool]$SkipNextASTObject = $false
+                                #    }
 
-                                    if (-not ($SkipNextASTObject)) {
-                                        if ($ASTObject.Content -eq "{") {
-                                            $GroupStartCounter++
-                                        } else {
-                                            $GroupEndCounter++
-                                        }
-                                    } else {
+                                #    if (-not ($SkipNextASTObject)) {
+                                #        if ($ASTObject.Content -eq "{") {
+                                #            $GroupStartCounter++
+                                #        } else {
+                                #            $GroupEndCounter++
+                                #        }
+                                #    } else {
                                         # There was a "@{" hashtable declaration start. So the next end "}" should be skipped. Simply doing that be subtracting 1 from the GroupEndCounter
-                                        $GroupEndCounter--
-                                    }
+                                #        $GroupEndCounter--
+                                #    }
 
-                                    Write-Verbose -Message "Result of calculating GroupStartCounter and GroupEndCounter = $($GroupStartCounter-$GroupEndCounter)"
+                                #    Write-Verbose -Message "Result of calculating GroupStartCounter and GroupEndCounter = $($GroupStartCounter-$GroupEndCounter)"
                                     # Control if we found our closing function bracket ( } )
-                                    if ($GroupStartCounter-$GroupEndCounter -eq 0) {
+                                #    if ($GroupStartCounter-$GroupEndCounter -eq 0) {
                                         # Fetch the startline of the current inline function being iterated. As this is wherefrom the AST should be parsed when looking for commands used by the "mother" function
-                                        $ParseStartLine = $DeclaredFunction.StartLine
+                                #        $ParseStartLine = $DeclaredFunction.StartLine
 
                                         # Register the line of the closing bracket. Which is the line to parse by, when looking for commands used by the function
-                                        $ParseEndLine = $ASTObject.Endline
+                                #        $ParseEndLine = $ASTObject.Endline
 
                                         # Add it to the collection holding start & end info on the inline functions found in the "mother" function
-<#                                         $InlineFuncStartEndInfo = @{
-                                            "Endline" = $ParseEndLine
-                                            "StartLine" = $ParseStartLine
-                                        }
-                                        $InlineFunctionsStartEndInfo.Add($InlineFuncStartEndInfo) | Out-Null
-                                        Write-Verbose -Message "InlineFunctionsStartEndInfo now > $($InlineFunctionsStartEndInfo | Out-String)" #>
+                                        #$InlineFuncStartEndInfo = @{
+                                        #    "Endline" = $ParseEndLine
+                                        #    "StartLine" = $ParseStartLine
+                                        #}
+                                        #$InlineFunctionsStartEndInfo.Add($InlineFuncStartEndInfo) | Out-Null
+                                        #Write-Verbose -Message "InlineFunctionsStartEndInfo now > $($InlineFunctionsStartEndInfo | Out-String)" #>
 
-                                        Write-Verbose -Message "The parse start and endline for the func containing inline function/s is > Start: $($ParseStartLine). End: $($ParseEndLine)"
+                                        #Write-Verbose -Message "The parse start and endline for the func containing inline function/s is > Start: $($ParseStartLine). End: $($ParseEndLine)"
 
                                         # No need to continue the loop. The closing bracket has been found.
-                                        break
-                                    }
-                                } # End of foreach ASTObject. {} calculating. Start and end of a function
+                                        #break
+                                    #}
+
+                                    # Get the ASTObjects of the function containing the inline functions. Minus the inline functions themselves.
+                                    $ContainingFunctionAST = Filter-AST -AST $ast -LinesToExclude $InlineFunctionsStartEndInfo
+
+                                    #
+                                    [String]$ASTQuery = $_.Type -eq "Command" #-and $_.StartLine -ge $ParseStartLine -and $_.EndLine -le $ParseEndLine
+                                    $CommandsUsed = Filter-AST -AST $ContainingFunctionAST -ASTQuery $ASTQuery
+                                    Write-Verbose -Message "Commands used by the containing function > $($CommandsUsed | Out-String)"
+                                #} # End of foreach ASTObject. {} calculating. Start and end of a function
                             } else {
                                 $ParseStartLine = $DeclaredFunction.StartLine
                                 $ParseEndLine = $NextItemInDeclaredFunctions.StartLine-1
