@@ -32,8 +32,8 @@ function Out-PSModuleCallGraph() {
     edges of the graph.
 
     This parameter let's you control the way coloring is used by the function. You have the following options:
-        1. Auto. This is the default value. If you do not choose to specify anything to the "Coloring" parameter it is set to "Auto".
-        2. Colors. Setting "Coloring" you force the generated graph to be colored.
+        1. Auto. This is the default value. If you do not specify anything to the "Coloring" parameter it is set to "Auto".
+        2. Colors. Forces the generated graph to be colored.
         3. NoColors. Let's you specify that no colors should be used when generating the graph.
 .PARAMETER ExcludeDebugCommands
     Used to specify that you wish to exclude common debug commands such as > Write-Verbose & Write-Error.
@@ -794,7 +794,27 @@ function Out-PSModuleCallGraph() {
         <#
             - Create the Graph
         #>
-        # Determine the coloring options to use when generating the graph
+        # Generate randomized list of colors
+        [Array]$Colors = "aliceblue","antiquewhite","aquamarine","aquamarine4","bisque","blue","blueviolet","brown1","brown1","cadetblue2","chartreuse1","chartreuse4","chocolate1",
+        "cornflowerblue","cornsilk3","cyan","cyan4","darkgreen","darkolivegreen2","darkorchid","darkorchid4","darkorchid4","darksalmon","darkseagreen3","darkslategray","deeppink",
+        "deepskyblue4","firebrick","gold1","goldenrod1","green3","mediumorchid","mediumpurple","mistyrose","moccasin","yellow3"
+
+        # Initial color & color setting.
+        switch ($Coloring) {
+            "Auto" {
+                $PrivateFuncColor = Get-Random -InputObject $Colors
+            }
+            "Colors" {
+                $PrivateFuncColor = Get-Random -InputObject $Colors
+            }
+            "NoColors" {
+                $PrivateFuncColor = ""
+                $PublicFuncColor = ""
+            }
+            Default {
+                $PublicFuncColor = "dodgerblue2"
+            }
+        }
 
         # Generate the graph
         $graphData = Graph ModuleCallGraph -Attributes @{rankdir=$RealGraphDirection} {
@@ -804,20 +824,17 @@ function Out-PSModuleCallGraph() {
             # Simple counter for having a number to add to graph elements where duplicate elements are needed.
             $GraphElementNumber = 0
 
+            Write-Verbose -Message "Number of callgraphObjects > $($CallGraphObjects.Count)"
             # Create nodes on the graph on all the analyzed data
             foreach ($CallGraphObject in $CallGraphObjects) {
                 # Iterate over each potential CommandHierarchy object (from either the PublicCommandHierarchy or the FunctionCommandHierarchy collection). If there is only object. Still okay, will only iterate that one time (in bandcamp).
                 foreach ($CommandHierarchy in $CallGraphObject) {
-                    # Get the index of the current CallGraphObject.
-                    #[int]$IdxOfThisCallGraphObject = $CallGraphObjects.IndexOf($CallGraphObject)
-
                     # Control that the command/function actually used any other commands/functions
                     if ($CommandHierarchy.Commands.CommandsUsedInfo.Count -gt 0) {
                         Write-Verbose -Message "Command count is $($CommandHierarchy.Commands.CommandsUsedInfo.Count) for the command named $($CommandHierarchy.Affiliation)"
-                        Write-Verbose -Message "Element number is > $GraphElementNumber"
                         if ($CommandHierarchy.Type -eq "PublicCommands") {
                             # "Attach" the public command/function to the root node
-                            Edge ProjectRoot, $CommandHierarchy.Affiliation -Attributes @{label="Public"}
+                            Edge ProjectRoot, $CommandHierarchy.Affiliation -Attributes @{label="Public";color="$PublicFuncColor"}
                         }
 
                         # Create subgraphs for each command/function
