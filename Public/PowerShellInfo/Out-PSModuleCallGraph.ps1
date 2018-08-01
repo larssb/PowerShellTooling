@@ -795,26 +795,13 @@ function Out-PSModuleCallGraph() {
             - Create the Graph
         #>
         # Generate randomized list of colors
-        [Array]$Colors = "aliceblue","antiquewhite","aquamarine","aquamarine4","bisque","blue","blueviolet","brown1","brown1","cadetblue2","chartreuse1","chartreuse4","chocolate1",
-        "cornflowerblue","cornsilk3","cyan","cyan4","darkgreen","darkolivegreen2","darkorchid","darkorchid4","darkorchid4","darksalmon","darkseagreen3","darkslategray","deeppink",
-        "deepskyblue4","firebrick","gold1","goldenrod1","green3","mediumorchid","mediumpurple","mistyrose","moccasin","yellow3"
+        [Array]$PrivateColorsTemp = "aliceblue","antiquewhite","aquamarine","aquamarine4","bisque","blue","blueviolet","brown1","brown1","cadetblue2","chartreuse1","chartreuse4","chocolate1",
+        "cornflowerblue","cornsilk3","cyan","cyan4","darkolivegreen2","darkorchid","darkorchid4","darkorchid4","darksalmon","darkseagreen3","darkslategray","deeppink","deepskyblue4","firebrick",
+        "gold1","green3","mediumorchid","mediumpurple","mistyrose","moccasin","yellow3"
 
-        # Initial color & color setting.
-        switch ($Coloring) {
-            "Auto" {
-                $PrivateFuncColor = Get-Random -InputObject $Colors
-            }
-            "Colors" {
-                $PrivateFuncColor = Get-Random -InputObject $Colors
-            }
-            "NoColors" {
-                $PrivateFuncColor = ""
-                $PublicFuncColor = ""
-            }
-            Default {
-                $PublicFuncColor = "dodgerblue2"
-            }
-        }
+        [System.Collections.ArrayList]$PrivateColors = New-Object System.Collections.ArrayList
+        $PrivateColors.AddRange($PrivateColorsTemp) | Out-Null
+
 
         # Generate the graph
         $graphData = Graph ModuleCallGraph -Attributes @{rankdir=$RealGraphDirection} {
@@ -829,6 +816,14 @@ function Out-PSModuleCallGraph() {
             foreach ($CallGraphObject in $CallGraphObjects) {
                 # Iterate over each potential CommandHierarchy object (from either the PublicCommandHierarchy or the FunctionCommandHierarchy collection). If there is only object. Still okay, will only iterate that one time (in bandcamp).
                 foreach ($CommandHierarchy in $CallGraphObject) {
+                    # Initial Graph element color.
+                    if ($Coloring -eq "NoColors") {
+                        $PrivateFuncColor = ""
+                        $PublicFuncColor = ""
+                    } else {
+                        $PrivateFuncColor = Get-Random -InputObject $PrivateColors
+                        $PublicFuncColor = "dodgerblue2"
+                    }
                     # Control that the command/function actually used any other commands/functions
                     if ($CommandHierarchy.Commands.CommandsUsedInfo.Count -gt 0) {
                         Write-Verbose -Message "Command count is $($CommandHierarchy.Commands.CommandsUsedInfo.Count) for the command named $($CommandHierarchy.Affiliation)"
@@ -849,24 +844,20 @@ function Out-PSModuleCallGraph() {
                                     Node $CommandHierarchy.Affiliation
                                     Node @{style='filled';color='white'}
 
-                                    # Graph a relationship between the private command & the command/s it uses
-                                    #Edge $CommandHierarchy.Affiliation, $_.CommandName -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
-
                                     if ($_.CommandScope -eq "Private") {
                                         # Create a duplicate node for a private command used by this private command. Duplicate because the command already has its own subgraph. But we want it to be graphed underneath this command also.
-                                        Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
+                                        Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}#;color="$PrivateFuncColor"}
 
                                         # Graph a relationship between the private command & the private command that uses it
-                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}#;color="$PrivateFuncColor"}
 
                                         # Graph a relationship between the private command in this subgraph to the subgraph where the private command is fully graphed.
-                                        Edge "$($_.CommandName)$GraphElementNumber", $_.CommandName -Attributes @{arrowsize=0}
+                                        Edge "$($_.CommandName)$GraphElementNumber", $_.CommandName -Attributes @{arrowsize=0}#;color="$PrivateFuncColor"}
                                     } else {
                                         # Create a duplicate node for the command used by this command
                                         Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
                                         Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
                                     }
-                                    # DER SKAL GØRES NOGET HVIS DET ER PRIVATE TIL PRIVATE....
                                 } else {
                                     # Set the style of the nodes created in this section
                                     Node @{style='filled';color='white'}
@@ -876,10 +867,10 @@ function Out-PSModuleCallGraph() {
                                         Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
 
                                         # Graph a relationship between the private command & the command that uses it
-                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)"}
+                                        Edge $CommandHierarchy.Affiliation, "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$CommandCounter\n$($_.CommandScope)";color="$PrivateFuncColor"}
 
                                         # Graph a relationship between the private command in this subgraph to the subgraph where the private command is fully graphed.
-                                        Edge "$($_.CommandName)$GraphElementNumber", $_.CommandName -Attributes @{arrowsize=0}
+                                        Edge "$($_.CommandName)$GraphElementNumber", $_.CommandName -Attributes @{arrowsize=0;color="$PrivateFuncColor"}
                                     } else {
                                         # Create a duplicate node for the command used by this command
                                         Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
@@ -901,12 +892,18 @@ function Out-PSModuleCallGraph() {
                             }
 
                             # Graph a relationship between the project root & the node created for the command/function which uses no commands
-                            Edge ProjectRoot, $CommandHierarchy.Affiliation -Attributes @{label="Public"}
+                            Edge ProjectRoot, $CommandHierarchy.Affiliation -Attributes @{label="Public";color="$PublicFuncColor"}
                         }
                     }
 
                     # Add 1 to the GrapHElementNumber. This has to happen at this level. If not, Graph elements (function) that uses no commands will cause a GraphElementNumber to be used twice.
                     $GraphElementNumber++
+
+                    if (-not ($Coloring -eq "NoColor")) {
+                        # Remove the private color from the collection. To avoid it being re-used. As the color on each private function should be unique.
+                        $PrivateColors.Remove($PrivateFuncColor)
+                    }
+
                 } # End of foreach on either the FunctionCommandHierarchy or PublicCommandHierarchy collection.
             } # End of of foreach CallGraphObject in the CallGraphObjects collection
         }
