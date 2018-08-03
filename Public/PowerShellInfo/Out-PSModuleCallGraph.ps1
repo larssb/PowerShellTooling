@@ -1,4 +1,5 @@
-#Requires -Module PSGraph
+#Requires -Modules @{ ModuleName="PSGraph"; ModuleVersion="2.1.21" }
+# The above ensures to require v2.1.21+ of PSGraph to be installed. As this is the version where SVG as output format was supported.
 function Out-PSModuleCallGraph() {
 <#
 .DESCRIPTION
@@ -71,6 +72,7 @@ function Out-PSModuleCallGraph() {
         - JPG
         - PDF
         - PNG
+        - SVG
     The default is PNG. Set to this as this is what is the default in the PSGraph docs. URI > http://psgraph.readthedocs.io/en/latest/Command-Export-PSGraph/
 .PARAMETER ShowGraph
     A switch parameter used to specify that the path should be opened and shown on screen after it has been generated.
@@ -108,7 +110,7 @@ function Out-PSModuleCallGraph() {
         [String]$OutputPath,
         [Parameter(ParameterSetName="ByModuleName")]
         [Parameter(ParameterSetName="ByModuleRoot")]
-        [ValidateSet("gif","jpg","pdf","png")]
+        [ValidateSet("gif","jpg","pdf","png","svg")]
         [String]$OutputFormat = "png",
         [Parameter(ParameterSetName="ByModuleName")]
         [Parameter(ParameterSetName="ByModuleRoot")]
