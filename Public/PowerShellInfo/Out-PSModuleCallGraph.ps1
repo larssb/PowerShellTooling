@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.0
+.VERSION 1.0.1
 .GUID a28d780d-1f96-49a2-a964-d3e8bade5440
 .AUTHOR Lars Bengtsson | https://github.com/larssb | https://bengtssondd.it/
 .DESCRIPTION Use Out-PSModuleCallGraph to generate a call-graph on a PowerShell module. The call-graph helps you get an overview on the inner workings of "X" PowerShell module. What commands are the public commands of the module calling, what are those commands calling and so forth. In other words. A way for you to get a look behind the scenes. And thereby an idea into which commands to go-to in specific situations. Out-PSModuleCallGraph analyzes the scope of the commands in the module. How they call eachother and finally uses the PowerShell module PSGraph to generate the call-graph. The call-graph is styled with colors and the like in order to heigthen the readability of the graph. It is possible to control parts of the process generating the graph. E.g. the direction of the graph.
@@ -916,11 +916,6 @@ function Out-PSModuleCallGraph() {
 
                                         # Graph a relationship between the private command in this subgraph to the subgraph where the private command is fully graphed.
                                         Edge "$($_.CommandName)$GraphElementNumber", $_.CommandName -Attributes @{arrowsize=0;color="$PrivateFuncColor";penwidth=$PenWidth}
-
-<#                                         if (-not ($Coloring -eq "NoColor")) {
-                                            # Remove the private color from the collection. To avoid it being re-used. As the color on each private function should be unique.
-                                            $PrivateColors.Remove($PrivateFuncColor)
-                                        }    #>
                                     } else {
                                         # Create a duplicate node for the public command/function.
                                         Node -Name "$($_.CommandName)$GraphElementNumber" -Attributes @{label="$($_.CommandName)"}
