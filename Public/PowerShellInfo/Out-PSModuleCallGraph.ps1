@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.1
+.VERSION 1.0.2
 .GUID a28d780d-1f96-49a2-a964-d3e8bade5440
 .AUTHOR Lars Bengtsson | https://github.com/larssb | https://bengtssondd.it/
 .DESCRIPTION Use Out-PSModuleCallGraph to generate a call-graph on a PowerShell module. The call-graph helps you get an overview on the inner workings of "X" PowerShell module. What commands are the public commands of the module calling, what are those commands calling and so forth. In other words. A way for you to get a look behind the scenes. And thereby an idea into which commands to go-to in specific situations. Out-PSModuleCallGraph analyzes the scope of the commands in the module. How they call eachother and finally uses the PowerShell module PSGraph to generate the call-graph. The call-graph is styled with colors and the like in order to heigthen the readability of the graph. It is possible to control parts of the process generating the graph. E.g. the direction of the graph.
@@ -154,12 +154,31 @@ function Out-PSModuleCallGraph() {
             $GraphOutputPath = Join-Path -Path $home -ChildPath $FileName
         }
 
-        if ($PSBoundParameters.ContainsKey('ModuleName')) {
-            # Import the specified module by name. Therefore, loaded from one of the default PowerShell module path locations.
-            $Module = Import-Module -DisableNameChecking -Force -Name $ModuleName -PassThru -WarningAction SilentlyContinue
-        } else {
-            # Import the specified module by its fullname/path.
-            $Module = Import-Module -DisableNameChecking -Force -Name $ModuleRoot -PassThru
+        <#
+            - Import the module the caller wishes to analyze
+        #>
+        try {
+            if ($PSBoundParameters.ContainsKey('ModuleName')) {
+                # Import the specified module by name. Therefore, loaded from one of the default PowerShell module path locations.
+                $Module = Import-Module -DisableNameChecking -Force -Name $ModuleName -PassThru -WarningAction SilentlyContinue -ErrorAction Stop
+            } else {
+                # Import the specified module by its fullname/path.
+                $Module = Import-Module -DisableNameChecking -Force -Name $ModuleRoot -PassThru -WarningAction SilentlyContinue -ErrorAction Stop
+            }
+        } catch [System.Management.Automation.RuntimeException] {
+            if ($PSBoundParameters.ContainsKey('ModuleName')) {
+                Write-Output "The PowerShell module named $ModuleName could not be loaded. Cannot continue."
+            } else {
+                Write-Output "There is no PowerShell module in the $ModuleRoot folder. Cannot continue."
+            }
+
+            # No reason to continue.
+            break
+        } catch {
+            Write-Output "An unknown error occurred when trying to execute Import-Module. The error is > $_. Cannot continue."
+
+            # No reason to continue.
+            break
         }
 
         # Get the public commands/functions loaded by the module. Need them in order to control the scope and type of 'x' command/function being analyzed later on.
@@ -583,7 +602,7 @@ function Out-PSModuleCallGraph() {
                 [String]$FunctionName = ($ast.where( { $_.Startline -eq $DeclaredFunction.StartLine -and $_.Type -eq "CommandArgument" } )).Content
 
                 if (-not $PublicFunctions.Name.Contains($FunctionName)) {
-                    $PrivateFunctions.Add($FunctionName) | Out-Null
+                    $PrivateFunctions.Add($FunctionName) | Out-Null
                     Write-Verbose -Message "Found a private function named $FunctionName"
                 }
             }
@@ -956,4 +975,4 @@ function Out-PSModuleCallGraph() {
         $GraphOutput = $graphData | Export-PSGraph @ExportPSGraphSplatting
         Write-Host "The graph was generated. Find it in $($GraphOutput.DirectoryName) with the name $($GraphOutput.Name)" -ForegroundColor Green
     }
-}
+} # End of Out-PSModuleCallGraph function declaration
