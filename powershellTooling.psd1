@@ -7,7 +7,7 @@
     GUID = 'c1e187cd-222f-4df6-8238-88f90f0284ee'
 
     # Version number of this module.
-    ModuleVersion = '0.0.16'
+    ModuleVersion = '1.0.0'
 
     # Author of this module
     Author = 'Lars S. Bengtsson | https://github.com/larssb | https://bengtssondd.it'
@@ -16,15 +16,13 @@
     CompanyName = 'Bengtsson Driven Development'
 
     # Copyright statement for this module
-    Copyright = '(C) 2018, Lars S. Bengtsson, licensed under Apache 2.0 License.'
+    Copyright = '(C) Lars S. Bengtsson | https://github.com/larssb > Licensed under Apache 2.0 License.'
 
     # Description of the functionality provided by this module
     Description = 'A project containing helper functions and other utilities to make your life programming PowerShell easier.'
 
     # Modules that must be imported into the global environment prior to importing this module
-    RequiredModules = @(
-        "PSSlack"
-    )
+    #RequiredModules = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(

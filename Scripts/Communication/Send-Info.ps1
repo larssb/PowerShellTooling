@@ -1,3 +1,4 @@
+#Requires -Modules PSSlack
 function Send-Info() {
 <#
 .DESCRIPTION
