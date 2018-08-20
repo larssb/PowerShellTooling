@@ -13,7 +13,7 @@
   "linux": {
     "options": {
       "shell": {
-        "executable": "/usr/bin/pwsh",
+        "executable": "/usr/bin/pwsh-preview",
         "args": [ "-NoProfile", "-Command" ]
       }
     }
@@ -21,7 +21,7 @@
   "osx": {
     "options": {
       "shell": {
-        "executable": "/usr/local/bin/pwsh",
+        "executable": "/usr/local/bin/pwsh-preview",
         "args": [ "-NoProfile", "-Command" ]
       }
     }
