@@ -35,7 +35,7 @@ $runmode = [Environment]::UserInteractive
 <#
     - Main build task
 #>
-$folderToInclude = @('Artefacts','docs','Public')
+$folderToInclude = @('Artefacts','Public')
 
 task build {
     # Copy folders to buildOutputRoot
