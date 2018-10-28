@@ -7,7 +7,7 @@
     GUID = 'c1e187cd-222f-4df6-8238-88f90f0284ee'
 
     # Version number of this module.
-    ModuleVersion = '1.0.1'
+    ModuleVersion = '1.0.2'
 
     # Author of this module
     Author = 'Lars S. Bengtsson | https://github.com/larssb | https://bengtssondd.it'
@@ -29,7 +29,7 @@
         'Add-ScheduledTask'
         'get-environmentOS'
         'get-hostname'
-        'Get-PSProgramFilesModulesPath'
+        'Get-PSModulesPath'
         'Get-PublicFunctions'
         'Get-xScheduledTask'
         'import-jsonFile'
@@ -50,7 +50,6 @@
     PrivateData = @{
 
         PSData = @{
-
             # Tags applied to this module. These help with module discovery in online galleries.
             # Tags = @()
 
@@ -64,14 +63,14 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            # ReleaseNotes = ''
+            ReleaseNotes = 'Improved the Get-PSModulePath function (used to be named Get-PSProgramFilesModulesPath). Now it can
+            hand back the path to the PS module folder relative to a context/scope. User or system wide.'
 
             # Flag to indicate whether the module requires explicit user acceptance for install/update/save
             # RequireLicenseAcceptance = False
 
             # External dependent modules of this module
             # ExternalModuleDependencies = ''
-
         }
     }
 }
